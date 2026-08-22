@@ -1,0 +1,76 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gofmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: stable }
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::these files are not gofmt-clean:"; echo "$unformatted"
+            exit 1
+          fi
+
+  darwin:
+    name: darwin (the platform playback runs on)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: stable }
+      - run: CGO_ENABLED=0 go vet ./...
+      - run: CGO_ENABLED=0 go build ./...
+      - run: CGO_ENABLED=0 go test -count=1 -coverprofile=cover.out ./...
+      - run: CGO_ENABLED=1 go test -race -count=1 ./...
+      # The gate is on the PORTABLE files. Playback needs a display, a video file
+      # and a pair of glasses, none of which a runner has; a total-coverage gate
+      # would therefore be a number chosen to pass rather than a standard.
+      - name: 100% coverage gate on the portable logic
+        shell: bash
+        run: |
+          go tool cover -func=cover.out | grep -E '/(detect|screen)\.go:' > portable.txt
+          cat portable.txt
+          if grep -v '100.0%' portable.txt; then
+            echo "::error::the portable logic is below 100% (lines above)"; exit 1
+          fi
+          echo "portable logic: 100%"
+
+  cross:
+    name: cross ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: stable }
+      - run: CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build ./...
+      - run: CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go vet ./...
+
+  linux:
+    name: linux (portable logic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: stable }
+      - run: CGO_ENABLED=0 go test -count=1 ./...
