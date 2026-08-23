@@ -150,3 +150,50 @@ func TestChooseDisplayLastResort(t *testing.T) {
 		t.Errorf("chose %v, want the sole display", got)
 	}
 }
+
+// TestScalingAdvice covers the warning for a display rendering more pixels than
+// its panel can show. It exists because a VITURE Beast was observed reporting
+// "5120x1600 rendered, looks like 2560x800" while its panel is 3840x1080 —
+// three quarters of the rendered pixels thrown away, with nothing to say so.
+func TestScalingAdvice(t *testing.T) {
+	scaledBeast := Display{Name: "VITURE Beast", Width: 2560, Height: 800, Scale: 2}
+	got := ScalingAdvice(scaledBeast)
+	if got == "" {
+		t.Fatal("a 2x-scaled pair of glasses produced no advice")
+	}
+	for _, want := range []string{"SCALED", "2560x800", "5120x1600", "VITURE Beast"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("advice %q should mention %q", got, want)
+		}
+	}
+
+	// Nothing to say about a pixel-exact mode.
+	if got := ScalingAdvice(Display{Name: "VITURE Beast", Width: 3840, Height: 1080, Scale: 1}); got != "" {
+		t.Errorf("a 1x mode produced advice: %q", got)
+	}
+	// A zero scale means the back-end did not report one; say nothing rather
+	// than accuse the display of something on missing information.
+	if got := ScalingAdvice(Display{Name: "VITURE Beast", Width: 3840, Height: 1080, Scale: 0}); got != "" {
+		t.Errorf("an unreported scale produced advice: %q", got)
+	}
+	// A scaled ORDINARY display is the user's own choice, not our business.
+	if got := ScalingAdvice(Display{Name: "Built-in Retina Display", Width: 2056, Height: 1329, Scale: 2, Primary: true}); got != "" {
+		t.Errorf("a scaled laptop panel produced advice: %q", got)
+	}
+	if got := ScalingAdvice(Display{Name: "DELL U2723QE", Width: 2560, Height: 1440, Scale: 2}); got != "" {
+		t.Errorf("a scaled external monitor produced advice: %q", got)
+	}
+}
+
+func TestKnownGlassesName(t *testing.T) {
+	for _, n := range []string{"VITURE Beast", "viture luma", "XREAL One Pro", "Rokid Max", "TCL NXTWEAR S"} {
+		if !knownGlassesName(n) {
+			t.Errorf("%q was not recognised as glasses", n)
+		}
+	}
+	for _, n := range []string{"Built-in Retina Display", "DELL U2723QE", "", "HDMI Monitor"} {
+		if knownGlassesName(n) {
+			t.Errorf("%q was wrongly recognised as glasses", n)
+		}
+	}
+}

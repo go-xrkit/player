@@ -104,7 +104,7 @@ func Play(cfg Config) error {
 	}
 	displays := make([]Display, len(screens))
 	for i, s := range screens {
-		displays[i] = Display{Name: s.Name, Width: s.Width, Height: s.Height, Primary: s.Primary}
+		displays[i] = Display{Name: s.Name, Width: s.Width, Height: s.Height, Primary: s.Primary, Scale: s.Scale}
 	}
 	chosen, err := ChooseDisplay(displays, cfg.Screen)
 	if err != nil {
@@ -135,6 +135,9 @@ func Play(cfg Config) error {
 	cfg.logf("content   %s", geom)
 	cfg.logf("  because: %s", geom.Why)
 	cfg.logf("display   %s", chosen)
+	if advice := ScalingAdvice(chosen); advice != "" {
+		cfg.logf("  WARNING: %s", advice)
+	}
 	if stereoscopic {
 		cfg.logf("  side-by-side 3D mode: one eye per half")
 	} else {
