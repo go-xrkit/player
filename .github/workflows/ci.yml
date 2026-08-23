@@ -42,7 +42,7 @@ jobs:
       - name: 100% coverage gate on the portable logic
         shell: bash
         run: |
-          go tool cover -func=cover.out | grep -E '/(detect|screen)\.go:' > portable.txt
+          go tool cover -func=cover.out | grep -E '/(detect|screen|source)\.go:' > portable.txt
           cat portable.txt
           if grep -v '100.0%' portable.txt; then
             echo "::error::the portable logic is below 100% (lines above)"; exit 1

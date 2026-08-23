@@ -13,7 +13,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/go-macos/avfoundation"
 	"github.com/go-widgets/toolkit"
 	"github.com/go-widgets/window"
 	"github.com/go-xrkit/xrkit/pose"
@@ -81,22 +80,23 @@ func (c Config) logf(format string, args ...any) {
 // It must be called from the process main goroutine: the window back-end pins
 // that thread for AppKit, which requires it.
 func Play(cfg Config) error {
+	src, err := openSource(cfg.Path)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	info := src.Info()
+
 	// The decoder pads rows, and by how much is not knowable until a frame comes
 	// out -- but the sampling tables bake the stride into every offset, so it has
-	// to be known BEFORE they are built. Decoding one frame and throwing it away
-	// costs a millisecond; recomputing four million offsets per frame to fix the
-	// stride afterwards would cost the whole benefit of having a table.
-	strideWords, err := probeStride(cfg.Path)
+	// to be known BEFORE they are built. So the first frame is pulled here and
+	// kept: opening the file a second time to measure it would mean reading a
+	// two-gigabyte film twice.
+	first, err := src.Next()
 	if err != nil {
-		return err
+		return fmt.Errorf("player: cannot decode a first frame of %s: %w", cfg.Path, err)
 	}
-
-	dec, err := avfoundation.Open(cfg.Path)
-	if err != nil {
-		return err
-	}
-	defer dec.Close()
-	info := dec.Info()
+	strideWords := first.StrideWords
 
 	screens, err := window.Screens()
 	if err != nil {
@@ -132,6 +132,7 @@ func Play(cfg Config) error {
 
 	cfg.logf("file      %s", cfg.Path)
 	cfg.logf("  %dx%d  %.3f fps  %v", info.Width, info.Height, info.FrameRate, info.Duration.Round(time.Millisecond))
+	cfg.logf("  via %s", info.Container)
 	cfg.logf("content   %s", geom)
 	cfg.logf("  because: %s", geom.Why)
 	cfg.logf("display   %s", chosen)
@@ -201,7 +202,7 @@ func Play(cfg Config) error {
 	}
 
 	go func() {
-		v.decode(dec, cfg, stop, repaint)
+		v.decode(src, first, cfg, stop, repaint)
 		// Decoding is what the window is for, so when it ends the window should
 		// go too -- otherwise a finished file leaves a black rectangle over the
 		// display with no way out but a keypress.
@@ -231,7 +232,7 @@ type view struct {
 }
 
 // newView builds the sampling tables for the framebuffer it will fill.
-func newView(fbW, fbH int, stereoscopic bool, geom Geometry, info avfoundation.Info, strideWords int, fovy float64) *view {
+func newView(fbW, fbH int, stereoscopic bool, geom Geometry, info SourceInfo, strideWords int, fovy float64) *view {
 	v := &view{fbW: fbW, fbH: fbH}
 	v.front = make([]uint32, fbW*fbH)
 	v.back = make([]uint32, fbW*fbH)
@@ -289,7 +290,7 @@ func (v *view) present() {
 }
 
 // decode pulls frames, waits for each one's moment, warps it and presents it.
-func (v *view) decode(dec *avfoundation.Reader, cfg Config, stop <-chan struct{}, repaint func()) {
+func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struct{}, repaint func()) {
 	var (
 		start  time.Time
 		shown  int
@@ -305,7 +306,13 @@ func (v *view) decode(dec *avfoundation.Reader, cfg Config, stop <-chan struct{}
 		default:
 		}
 
-		f, err := dec.NextFrame()
+		var f *srcFrame
+		var err error
+		if first != nil {
+			f, first = first, nil
+		} else {
+			f, err = src.Next()
+		}
 		if errors.Is(err, io.EOF) {
 			cfg.logf("end of file after %d frames (mean lateness %v)", shown, meanLate(late, frames))
 			if !cfg.Loop {
@@ -334,9 +341,8 @@ func (v *view) decode(dec *avfoundation.Reader, cfg Config, stop <-chan struct{}
 		}
 		frames++
 
-		src := asWords(f.Pix)
 		for i, m := range v.maps {
-			m.ApplySwapRB(src, v.back, v.fbW, i*v.eyeW, black)
+			m.ApplySwapRB(f.Pix, v.back, v.fbW, i*v.eyeW, black)
 		}
 		f.Release()
 		v.present()
@@ -367,26 +373,6 @@ func (v *view) writeSnapshot(path string) error {
 	}
 	defer f.Close()
 	return png.Encode(f, img)
-}
-
-// probeStride decodes one frame to learn the decoder.s row padding, in 32-bit
-// words, then throws it away.
-func probeStride(path string) (int, error) {
-	r, err := avfoundation.Open(path)
-	if err != nil {
-		return 0, err
-	}
-	defer r.Close()
-	f, err := r.NextFrame()
-	if err != nil {
-		return 0, fmt.Errorf("player: cannot decode a first frame of %s: %w", path, err)
-	}
-	stride := f.Stride
-	f.Release()
-	if stride <= 0 || stride%4 != 0 {
-		return 0, fmt.Errorf("player: the decoder reported a %d-byte stride, which is not a whole number of pixels", stride)
-	}
-	return stride / 4, nil
 }
 
 // meanLate reports the average lateness, guarding the empty case.
