@@ -13,6 +13,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/go-widgets/painter"
 	"github.com/go-widgets/toolkit"
 	"github.com/go-widgets/window"
 	"github.com/go-xrkit/xrkit/pose"
@@ -126,6 +127,7 @@ func Play(cfg Config) error {
 		cfg.logf("  single view (the panel is not in a side-by-side mode)")
 	}
 
+	theme := toolkit.DefaultDark()
 	win, err := window.Open(window.Config{
 		Title: "xrplay",
 		// A self-rendering root composes its own pixels at whatever size it is
@@ -133,7 +135,7 @@ func Play(cfg Config) error {
 		RenderScale: window.NativeScale,
 		Screen:      &target,
 		Fullscreen:  true,
-		Theme:       toolkit.DefaultDark(),
+		Theme:       theme,
 	})
 	if err != nil {
 		return fmt.Errorf("player: cannot open a window on %s: %w", chosen, err)
@@ -171,6 +173,12 @@ func Play(cfg Config) error {
 	cfg.logf("file      %s", cfg.Path)
 	cfg.logf("  %dx%d  %.3f fps  %v", info.Width, info.Height, info.FrameRate, info.Duration.Round(time.Millisecond))
 	cfg.logf("  via %s", info.Container)
+	if ac, ok := src.(audioClocked); ok {
+		cfg.logf("  audio: %s", ac.AudioNote())
+		if err := ac.StartAudio(); err != nil {
+			cfg.logf("  audio failed to start (%v); playing silently", err)
+		}
+	}
 	cfg.logf("content   %s", geom)
 	cfg.logf("  because: %s", geom.Why)
 
@@ -184,6 +192,9 @@ func Play(cfg Config) error {
 	defer closeStop()
 
 	shown := 0
+	// Declared before the surface so the paint callback can snapshot the whole
+	// tree; it is built below, once the bar exists.
+	var overlay *toolkit.Overlay
 	surface := toolkit.NewSurface(v.frame)
 	if clock != nil {
 		// A clocked source must be polled from the MAIN thread, and the paint
@@ -202,7 +213,7 @@ func Play(cfg Config) error {
 				f.Release()
 				shown++
 				if cfg.Snapshot != "" && shown == cfg.SnapshotAfter+1 {
-					if err := v.writeSnapshot(cfg.Snapshot); err != nil {
+					if err := v.writeSnapshot(cfg.Snapshot, overlay, theme); err != nil {
 						cfg.logf("snapshot failed: %v", err)
 					} else {
 						cfg.logf("snapshot of frame %d written to %s", shown-1, cfg.Snapshot)
@@ -319,7 +330,7 @@ func Play(cfg Config) error {
 	// Content is the video; the controls are a layer above it. Events route
 	// top-down, so a click on a button reaches the button and everything else
 	// falls through to the video.
-	overlay := toolkit.NewOverlay(surface)
+	overlay = toolkit.NewOverlay(surface)
 	var barMu sync.Mutex
 	lastActivity := time.Now()
 	barUp := false
@@ -426,7 +437,7 @@ func Play(cfg Config) error {
 		}()
 	} else {
 		go func() {
-			v.decode(src, first, cfg, stop, repaint, pause, bar, info.Duration)
+			v.decode(src, first, cfg, stop, repaint, pause, bar, info.Duration, overlay, theme)
 			// Decoding is what the window is for, so when it ends the window should
 			// go too -- otherwise a finished file leaves a black rectangle over the
 			// display with no way out but a keypress.
@@ -515,7 +526,7 @@ func (v *view) present() {
 }
 
 // decode pulls frames, waits for each one's moment, warps it and presents it.
-func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struct{}, repaint func(), pause *pauser, bar *controlBar, total time.Duration) {
+func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struct{}, repaint func(), pause *pauser, bar *controlBar, total time.Duration, snapRoot toolkit.Widget, snapTheme *toolkit.Theme) {
 	var (
 		start  time.Time
 		shown  int
@@ -564,7 +575,16 @@ func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struc
 		// Wait out a pause before timing anything: the stopped time is given back
 		// through the offset, so a resumed video carries on rather than racing.
 		pause.Wait(stop)
-		if d := f.PTS - (time.Since(start) - pause.Offset()); d > 0 {
+		// Follow the sound when there is any. Timing video against the wall clock
+		// instead would drift away from the audio over a feature-length film, and
+		// the ear notices that long before the eye does.
+		elapsed := time.Since(start) - pause.Offset()
+		if ac, ok := src.(audioClocked); ok {
+			if at, has := ac.AudioClock(); has {
+				elapsed = at
+			}
+		}
+		if d := f.PTS - elapsed; d > 0 {
 			select {
 			case <-time.After(d):
 			case <-stop:
@@ -590,7 +610,7 @@ func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struc
 		shown++
 
 		if cfg.Snapshot != "" && shown == cfg.SnapshotAfter+1 {
-			if err := v.writeSnapshot(cfg.Snapshot); err != nil {
+			if err := v.writeSnapshot(cfg.Snapshot, snapRoot, snapTheme); err != nil {
 				cfg.logf("snapshot failed: %v", err)
 			} else {
 				cfg.logf("snapshot of frame %d written to %s", shown-1, cfg.Snapshot)
@@ -599,13 +619,21 @@ func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struc
 	}
 }
 
-// writeSnapshot saves the composed framebuffer as a PNG. It is the pixels the
-// glasses were actually given, read back under the same lock the painter uses.
-func (v *view) writeSnapshot(path string) error {
-	v.mu.Lock()
+// writeSnapshot saves what the viewer sees as a PNG.
+//
+// It draws the WHOLE widget tree -- the video and whatever is layered over it --
+// through the same painter the window uses, rather than copying the video
+// buffer alone. A snapshot that shows only the video cannot answer the one
+// question worth asking about an overlay: is it there?
+func (v *view) writeSnapshot(path string, root toolkit.Widget, theme *toolkit.Theme) error {
 	img := image.NewRGBA(image.Rect(0, 0, v.fbW, v.fbH))
-	copy(img.Pix, asBytes(v.front))
-	v.mu.Unlock()
+	if root != nil {
+		root.Draw(painter.NewPixelPainter(img.Pix, v.fbW, v.fbH), theme)
+	} else {
+		v.mu.Lock()
+		copy(img.Pix, asBytes(v.front))
+		v.mu.Unlock()
+	}
 
 	f, err := os.Create(path)
 	if err != nil {

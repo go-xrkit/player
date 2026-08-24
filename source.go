@@ -158,3 +158,17 @@ func readHead(path string) ([]byte, error) {
 	}
 	return buf[:n], nil
 }
+
+// audioClocked is a pull source that carries its own sound, and so its own
+// clock. A player times video against it rather than against the wall clock,
+// because the ear notices a drift the eye ignores.
+type audioClocked interface {
+	// AudioClock is how much sound has actually left the speaker, and whether
+	// there is any sound at all.
+	AudioClock() (time.Duration, bool)
+	// StartAudio begins playback.
+	StartAudio() error
+	// AudioNote describes what was found, for the log — including why there is
+	// no sound, which is far more useful than silence with no explanation.
+	AudioNote() string
+}
