@@ -77,7 +77,7 @@ until head tracking arrives.
 
 | container | path | notes |
 |---|---|---|
-| MP4, MOV, M4V | AVFoundation | demux and decode in one |
+| MP4, MOV, M4V | `AVPlayer` | demux, decode **and sound**, with a clock of its own |
 | **MKV, WebM** | [`go-avkit/avkit/container`](https://github.com/go-avkit/avkit) demux + [`go-macos/videotoolbox`](https://github.com/go-macos/videotoolbox) | AVFoundation refuses Matroska outright |
 
 The choice is made from what the file **is**, not by trying AVFoundation and
@@ -95,10 +95,8 @@ one. Up to 8 frames are held back and emitted by timestamp.
 
 ## Limits
 
-- **No seeking, no audio, no loop.** A file plays through once, silently.
-  `go-macos/avfoundation` now has a `Player` with sound, seeking and rate, but
-  it must be driven from the main thread, which is a different loop shape than
-  the one here.
+- **No seeking, no loop.** A file plays through once. **Sound works for
+  MP4/MOV/M4V**; the Matroska path is silent, because it decodes video only.
 - **AV1, VP9 and VP8 in Matroska are not decoded** — H.264 and HEVC only.
 - **macOS only.** The geometry and display logic here are portable and tested
   everywhere; the decoder and window back-ends are not written for Linux or

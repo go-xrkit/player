@@ -28,7 +28,7 @@ func openSource(path string) (source, error) {
 	case container.FormatMatroska:
 		return openMatroska(path)
 	default:
-		return openAVFoundation(path)
+		return openAVPlayer(path)
 	}
 }
 
@@ -186,6 +186,83 @@ func (s *vtSource) Next() (*srcFrame, error) {
 	}
 	var f *videotoolbox.Frame
 	f, s.pending = popEarliest(s.pending)
+	return &srcFrame{
+		Width: f.Width, Height: f.Height,
+		StrideWords: f.Stride / 4,
+		PTS:         f.PTS,
+		Pix:         asWords(f.Pix),
+		release:     f.Release,
+	}, nil
+}
+
+// ---------------------------------------------------------------------------
+// AVPlayer: MP4, MOV, M4V — with sound, and a clock of its own.
+// ---------------------------------------------------------------------------
+
+// clocked is a source that owns its own clock: it renders audio through the
+// system output, drops video to stay in sync, and answers where in the file it
+// is. A source without it is a decoder the player must time itself.
+//
+// The distinction is not cosmetic. A clocked source must be opened AND polled
+// from the process main thread — AVFoundation loads through the main dispatch
+// queue and only the main thread's run loop drains it — so it is driven from the
+// paint callback, not from a decode goroutine. The two shapes cannot share one
+// loop, which is why this interface exists rather than a flag.
+type clocked interface {
+	source
+	// Play starts or resumes, with sound.
+	Play()
+	// Pause stops the clock where it is.
+	Pause()
+	// CurrentTime is where the clock is.
+	CurrentTime() time.Duration
+	// SetVolume takes 0 to 1.
+	SetVolume(v float64)
+	// Pump runs the MAIN thread's run loop for about d. It must be called only
+	// before a window system takes the main run loop over, never after.
+	Pump(d time.Duration)
+}
+
+type avPlayerSource struct {
+	p    *avfoundation.Player
+	info SourceInfo
+}
+
+// openAVPlayer opens a file for real-time playback.
+//
+// Loading is asynchronous through the main dispatch queue, so the run loop is
+// pumped while waiting. Sleeping instead would not load the file — and worse,
+// the player would still ANSWER, echoing back whatever time it was last handed,
+// which is exactly how a binding that has opened nothing passes for one that
+// works.
+func openAVPlayer(path string) (source, error) {
+	p, err := avfoundation.OpenPlayer(path)
+	if err != nil {
+		return nil, err
+	}
+	i := p.Info()
+	return &avPlayerSource{p: p, info: SourceInfo{
+		Width: i.Width, Height: i.Height, FrameRate: i.FrameRate,
+		Duration: i.Duration, Container: "MP4/MOV (AVPlayer, with sound)",
+	}}, nil
+}
+
+func (s *avPlayerSource) Info() SourceInfo           { return s.info }
+func (s *avPlayerSource) Close() error               { return s.p.Close() }
+func (s *avPlayerSource) Play()                      { s.p.Play() }
+func (s *avPlayerSource) Pause()                     { s.p.Pause() }
+func (s *avPlayerSource) CurrentTime() time.Duration { return s.p.CurrentTime() }
+func (s *avPlayerSource) SetVolume(v float64)        { s.p.SetVolume(v) }
+func (s *avPlayerSource) Pump(d time.Duration)       { s.p.Pump(d) }
+
+// Next is a POLL, not a pull: it returns (nil, nil) when the clock has not moved
+// on to a new picture yet, which is the common case at a display refresh rate
+// higher than the video's. A caller draws the previous frame again.
+func (s *avPlayerSource) Next() (*srcFrame, error) {
+	f, err := s.p.TryFrame()
+	if err != nil || f == nil {
+		return nil, err
+	}
 	return &srcFrame{
 		Width: f.Width, Height: f.Height,
 		StrideWords: f.Stride / 4,
