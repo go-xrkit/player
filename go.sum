@@ -12,12 +12,16 @@ github.com/ebitengine/purego v0.10.2 h1:W809HbnvzAxgdm+aOvlSekrM16wGCdT/e76+9tS7
 github.com/ebitengine/purego v0.10.2/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
 github.com/go-avkit/avkit v0.0.0-20260822082210-a77a82116774 h1:QfcpZqJHYfk118Zx4w2ofxUIr1hYSzFZZ0/Zk7cGwbQ=
 github.com/go-avkit/avkit v0.0.0-20260822082210-a77a82116774/go.mod h1:25b9f05nWlU8dX9Op//9qZJgxFjpv9R0qmIUWtWo3vc=
+github.com/go-avkit/avkit v0.0.0-20260824183509-855ca19fa702 h1:4YDEZPbn8xKtl/9RLHqroagmT9aJGaaKSk3JqcnAJFk=
+github.com/go-avkit/avkit v0.0.0-20260824183509-855ca19fa702/go.mod h1:25b9f05nWlU8dX9Op//9qZJgxFjpv9R0qmIUWtWo3vc=
 github.com/go-gfx/gfx v0.6.0 h1:sQkGEmB9YLouHxrscwvS4OW6oELsTtrKtQqsNdJ8L8Q=
 github.com/go-gfx/gfx v0.6.0/go.mod h1:bFt/MWyYWRU3Ic9IaB8XOC9KLMMHRRmahMk4FaIGK7g=
 github.com/go-iconoir/iconoir v0.2.0 h1:2ANqG6gkvHMoCtpNgNhSeOsuGMnlWQ+Sl43EndujIC0=
 github.com/go-iconoir/iconoir v0.2.0/go.mod h1:BrOQ68YO5BMsF7y+/nht4shbgjVfh9CxBoQF35eNosw=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 h1:nU+MGeyJzidGvCtx+HLZgHKG9GpUUomkQvB5nXLRWoc=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734/go.mod h1:ObuOBKDEidGX0LqLKY/5nqj7JVN/hsCzHMAJd0TNc0k=
+github.com/go-macos/audiotoolbox v0.0.0-20260824184339-de45e077a03d h1:ls0NBvVU4jsHWSjy2i8a2pnhOmRGE6nCPGbnnVAhLnY=
+github.com/go-macos/audiotoolbox v0.0.0-20260824184339-de45e077a03d/go.mod h1:8pixo8xNb4V3/bh4aHHO5ozxBvKB/Tte8SRzLSj1ReY=
 github.com/go-macos/avfoundation v0.2.0 h1:F6T9l8OrMZc1YXzLlyHn/4ImgI0ynA9r73WTMcvz0d0=
 github.com/go-macos/avfoundation v0.2.0/go.mod h1:RlMef862m9J6inv+t6Xr0ZqAuJBkBTODCDLCAUcTtH0=
 github.com/go-macos/objc v0.2.0 h1:uDFsiCMQT66A3E7dFsVYrnVOk3BQxpkhfwZJCtYuWq8=
@@ -46,6 +50,8 @@ github.com/go-widgets/toolkit v0.201.0 h1:hkf4BB8wYxKg7OlEwUjB0aMca2hphki3tTfBeG
 github.com/go-widgets/toolkit v0.201.0/go.mod h1:pNroe6a4TiuFC//n6kbsikgs/actqsvqN88vUxjwESg=
 github.com/go-widgets/window v0.47.0 h1:CymvpD5OtUxdDHJ6yAcdQtG2gsPIw44kNUsGJ0phscs=
 github.com/go-widgets/window v0.47.0/go.mod h1:eMROolGL1P4XdX98I1UtzNl/sSdzUFQ47G54pac8juc=
+github.com/go-widgets/window v0.48.0 h1:+b1VLHq0FbwgkVOdtK2igfXeR+iF12ju7qxyZ7nJbyk=
+github.com/go-widgets/window v0.48.0/go.mod h1:eMROolGL1P4XdX98I1UtzNl/sSdzUFQ47G54pac8juc=
 github.com/go-xrkit/xrkit v0.1.0 h1:5ZDU/EoGYUCV9HPIP64X7DcWjOLXzdnEZci2cbmiguc=
 github.com/go-xrkit/xrkit v0.1.0/go.mod h1:9ng88Wm1PNIOJg0++CzyF+ok6GZ6oDFaz1slFy7hKWc=
 github.com/godbus/dbus/v5 v5.2.2 h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ=

@@ -158,10 +158,29 @@ fallback says so in the log:
 When the second path fails too, **both** failures are reported. A fallback that
 hid the first error would turn a genuinely broken file into a puzzle.
 
+## The sound is the clock
+
+On the demuxed path the video is timed against **how much sound has actually
+left the speaker**, not against the wall clock. That is the rule every serious
+player follows, for a reason that is not symmetric: **the ear notices a drift the
+eye ignores**, so the picture follows the sound and never the other way round.
+Over a feature-length film a wall clock would walk away from the audio audibly.
+
+Decoding stays about a second ahead of what is heard, no further. A decoder that
+raced to the end would hold the whole film's PCM in the queue, and a pause would
+then take the rest of the film to be heard.
+
+A file with no audio track, or one in a codec this cannot decode, is **not an
+error**: it plays silently and the log says which of the two it was. Silence with
+no explanation is the thing worth avoiding.
+
+5.1 is mixed down to stereo. Sent to a headset unmixed it loses the centre
+channel, which is where the dialogue is.
+
 ## Limits
 
-- **No seeking, no loop.** A file plays through once. **Sound works for
-  MP4/MOV/M4V**; the Matroska path is silent, because it decodes video only.
+- **No loop.** A file plays through once. Seeking needs a clocked source, so it
+  works on the AVPlayer path and not on the demuxed one.
 - **AV1, VP9 and VP8 in Matroska are not decoded** — H.264 and HEVC only.
 - **macOS only.** The geometry and display logic here are portable and tested
   everywhere; the decoder and window back-ends are not written for Linux or

@@ -119,3 +119,55 @@ func TestRenderControlBar(t *testing.T) {
 		}
 	}
 }
+
+// TestOverlayCompositesBarOverVideo checks the thing the user actually sees: the
+// bar drawn ON TOP of a video surface, through the same Overlay the player
+// builds. Rendering the bar alone proves the widgets work; it does not prove the
+// composition does, and those are different failures with the same symptom —
+// no controls.
+func TestOverlayCompositesBarOverVideo(t *testing.T) {
+	const w, h = 1920, 1080
+
+	// A "video" of a single flat colour, so anything else on screen is the bar.
+	const vidR, vidG, vidB = 90, 20, 20
+	video := make([]byte, w*h*4)
+	for i := 0; i < len(video); i += 4 {
+		video[i], video[i+1], video[i+2], video[i+3] = vidR, vidG, vidB, 255
+	}
+	surface := toolkit.NewSurface(func() ([]byte, int, int) { return video, w, h })
+
+	bar := newControlBar(barActions{TogglePause: func() {}})
+	bar.Layout(w, h, 1)
+
+	overlay := toolkit.NewOverlay(surface)
+	overlay.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})
+
+	buf := make([]byte, w*h*4)
+	p := painter.NewPixelPainter(buf, w, h)
+	th := toolkit.DefaultDark()
+
+	// First without the bar: the whole view must be video.
+	overlay.Draw(p, th)
+	region := layoutBar(w, h, 1)
+	mid := func() [3]byte {
+		i := ((region.Y + region.H/2) * w) + region.X + region.W/2
+		return [3]byte{buf[i*4], buf[i*4+1], buf[i*4+2]}
+	}
+	if got := mid(); got != [3]byte{vidR, vidG, vidB} {
+		t.Fatalf("with no bar pushed, the middle of the bar area is %v, want the video colour", got)
+	}
+
+	// Then with it: the same spot must no longer be the video.
+	overlay.Push(bar.Root())
+	overlay.Draw(p, th)
+	if got := mid(); got == [3]byte{vidR, vidG, vidB} {
+		t.Error("after pushing the bar, the video still shows through where the bar should be")
+	}
+
+	// And clearing it must give the video back, or the bar could never hide.
+	overlay.Clear()
+	overlay.Draw(p, th)
+	if got := mid(); got != [3]byte{vidR, vidG, vidB} {
+		t.Errorf("after clearing the bar, the bar area is %v, want the video colour back", got)
+	}
+}

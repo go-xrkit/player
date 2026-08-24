@@ -119,12 +119,17 @@ func (s *avSource) Next() (*srcFrame, error) {
 // ---------------------------------------------------------------------------
 
 type vtSource struct {
-	sess    *videotoolbox.Session
-	samples []videotoolbox.Sample
-	next    int
-	pending []*videotoolbox.Frame
-	drained bool
-	info    SourceInfo
+	// audio is the sound, when the file has some this path can decode. It is also
+	// the CLOCK: the ear notices a drift the eye ignores, so the video follows
+	// the sound and never the other way round.
+	audio    *audioTrack
+	audioWhy string
+	sess     *videotoolbox.Session
+	samples  []videotoolbox.Sample
+	next     int
+	pending  []*videotoolbox.Frame
+	drained  bool
+	info     SourceInfo
 	// data is the whole file. avkit's reader is handed a byte slice, so a
 	// Matroska film is resident for as long as it plays: about 2 GB for a
 	// feature. That is a real cost and the reason this path is chosen only for
@@ -183,10 +188,14 @@ func openDemuxed(path string) (source, error) {
 		return nil, fmt.Errorf("player: cannot start a decoder for %s: %w", path, err)
 	}
 
+	audio, why := openAudio(r, file)
+
 	s := &vtSource{
-		sess:    sess,
-		samples: timedSamples(raw, cfg.Timescale),
-		data:    data,
+		audio:    audio,
+		audioWhy: why,
+		sess:     sess,
+		samples:  timedSamples(raw, cfg.Timescale),
+		data:     data,
 		info: SourceInfo{
 			Width: cfg.Width, Height: cfg.Height,
 			Duration:  time.Duration(file.DurationSeconds() * float64(time.Second)),
@@ -202,7 +211,29 @@ func openDemuxed(path string) (source, error) {
 
 func (s *vtSource) Info() SourceInfo { return s.info }
 
+// AudioClock reports where the sound has got to, and whether there is any.
+func (s *vtSource) AudioClock() (time.Duration, bool) {
+	if s.audio == nil {
+		return 0, false
+	}
+	return s.audio.Played(), true
+}
+
+// StartAudio begins playback of the sound, if there is any.
+func (s *vtSource) StartAudio() error {
+	if s.audio == nil {
+		return nil
+	}
+	return s.audio.Start()
+}
+
+// AudioNote says what was found, for the log.
+func (s *vtSource) AudioNote() string { return s.audioWhy }
+
 func (s *vtSource) Close() error {
+	if s.audio != nil {
+		s.audio.Close()
+	}
 	videotoolbox.ReleaseAll(s.pending)
 	s.pending = nil
 	s.data = nil
