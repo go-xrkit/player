@@ -24,12 +24,56 @@ func openSource(path string) (source, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch container.Sniff(head) {
-	case container.FormatMatroska:
-		return openMatroska(path)
-	default:
-		return openAVPlayer(path)
+	if container.Sniff(head) == container.FormatMatroska {
+		// AVFoundation will not demux Matroska at all, so there is nothing to try.
+		return openDemuxed(path)
 	}
+	return openAVPlayer(path)
+}
+
+// openPlaying returns a source that has actually PRODUCED A PICTURE, together
+// with its first frame and its clock if it has one.
+//
+// Opening is not working, and this is where that distinction earns its keep. A
+// real 7200x3600 VR180 recording stored as hev1 -- HEVC with its parameter sets
+// in the BITSTREAM rather than the sample description -- is OPENED by AVPlayer
+// without complaint and then never becomes ready, and AVAssetReader fails it
+// outright with status 3. VideoToolbox decodes the same file happily from the
+// parameter sets the demuxer recovers.
+//
+// So a source is accepted only once it has handed over a frame, and if the first
+// candidate cannot, the demuxed path is tried. When THAT fails too, both
+// failures are reported: a fallback that hides the first error would turn a
+// genuinely broken file into a puzzle.
+func openPlaying(path string, logf func(string, ...any)) (source, clocked, *srcFrame, error) {
+	src, err := openSource(path)
+	if err == nil {
+		clock, _ := src.(clocked)
+		f, ferr := firstFrame(src, clock)
+		if ferr == nil {
+			return src, clock, f, nil
+		}
+		src.Close()
+		err = ferr
+	}
+
+	head, herr := readHead(path)
+	if herr != nil || container.Sniff(head) == container.FormatMatroska {
+		// Matroska already took the demuxed path; there is no second one.
+		return nil, nil, nil, err
+	}
+	logf("  AVFoundation could not play this file (%v); trying the demuxer", err)
+
+	alt, aerr := openDemuxed(path)
+	if aerr != nil {
+		return nil, nil, nil, fmt.Errorf("%w (the demux+VideoToolbox path also refused it: %v)", err, aerr)
+	}
+	f, ferr := firstFrame(alt, nil)
+	if ferr != nil {
+		alt.Close()
+		return nil, nil, nil, fmt.Errorf("%w (the demux+VideoToolbox path opened it but produced no frame: %v)", err, ferr)
+	}
+	return alt, nil, f, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -88,7 +132,10 @@ type vtSource struct {
 	data []byte
 }
 
-func openMatroska(path string) (source, error) {
+// openDemuxed opens a file through avkit's demuxer and VideoToolbox. It works
+// for MP4 as well as Matroska: the demuxer reads both, and the decoder is handed
+// coded frames either way.
+func openDemuxed(path string) (source, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -143,7 +190,7 @@ func openMatroska(path string) (source, error) {
 		info: SourceInfo{
 			Width: cfg.Width, Height: cfg.Height,
 			Duration:  time.Duration(file.DurationSeconds() * float64(time.Second)),
-			Container: "Matroska (avkit demux + VideoToolbox)",
+			Container: containerName(file.Format) + " (avkit demux + VideoToolbox)",
 			Codec:     cfg.Codec,
 		},
 	}
@@ -195,6 +242,11 @@ func (s *vtSource) Next() (*srcFrame, error) {
 	}, nil
 }
 
+// Compile-time proof that the AVPlayer source really is clocked. Without it, a
+// missing method makes the type assertion in Play fail SILENTLY and the file
+// takes the pull path, which for a poll source yields no frame at all.
+var _ clocked = (*avPlayerSource)(nil)
+
 // ---------------------------------------------------------------------------
 // AVPlayer: MP4, MOV, M4V — with sound, and a clock of its own.
 // ---------------------------------------------------------------------------
@@ -218,6 +270,9 @@ type clocked interface {
 	CurrentTime() time.Duration
 	// SetVolume takes 0 to 1.
 	SetVolume(v float64)
+	// Seek moves the clock. A pull decoder cannot do this, which is the other
+	// reason the two shapes are separate types rather than one with flags.
+	Seek(at time.Duration) error
 	// Pump runs the MAIN thread's run loop for about d. It must be called only
 	// before a window system takes the main run loop over, never after.
 	Pump(d time.Duration)
@@ -247,13 +302,14 @@ func openAVPlayer(path string) (source, error) {
 	}}, nil
 }
 
-func (s *avPlayerSource) Info() SourceInfo           { return s.info }
-func (s *avPlayerSource) Close() error               { return s.p.Close() }
-func (s *avPlayerSource) Play()                      { s.p.Play() }
-func (s *avPlayerSource) Pause()                     { s.p.Pause() }
-func (s *avPlayerSource) CurrentTime() time.Duration { return s.p.CurrentTime() }
-func (s *avPlayerSource) SetVolume(v float64)        { s.p.SetVolume(v) }
-func (s *avPlayerSource) Pump(d time.Duration)       { s.p.Pump(d) }
+func (s *avPlayerSource) Info() SourceInfo            { return s.info }
+func (s *avPlayerSource) Close() error                { return s.p.Close() }
+func (s *avPlayerSource) Play()                       { s.p.Play() }
+func (s *avPlayerSource) Pause()                      { s.p.Pause() }
+func (s *avPlayerSource) CurrentTime() time.Duration  { return s.p.CurrentTime() }
+func (s *avPlayerSource) SetVolume(v float64)         { s.p.SetVolume(v) }
+func (s *avPlayerSource) Pump(d time.Duration)        { s.p.Pump(d) }
+func (s *avPlayerSource) Seek(at time.Duration) error { return s.p.Seek(at) }
 
 // Next is a POLL, not a pull: it returns (nil, nil) when the clock has not moved
 // on to a new picture yet, which is the common case at a display refresh rate

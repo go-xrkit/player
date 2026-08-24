@@ -71,6 +71,15 @@ func Detect(name string, w, h int) Geometry {
 		} else if w > 0 && h > 0 && nearAspect(w, h, 1, 1) {
 			g.Format.Layout = stereo.OverUnder
 			g.Why = "1:1 frame: two 2:1 images stacked"
+		} else if hasAny(lower, "vr180") {
+			// VR180 is stereoscopic BY DEFINITION -- the specification has two
+			// eyes -- so the format name breaks the tie where the aspect cannot:
+			// side-by-side VR180 is 2:1 overall, indistinguishable from a
+			// monoscopic sphere. It is consulted only HERE, after an explicit
+			// marker and after a decisive aspect, because both of those know
+			// more than a format name does.
+			g.Format.Layout = stereo.SideBySide
+			g.Why = "name says VR180, which is stereoscopic by definition"
 		} else {
 			g.Format.Layout = stereo.Mono
 			g.Why = "no stereo marker in the name and no stereo aspect"
@@ -90,12 +99,12 @@ func Detect(name string, w, h int) Geometry {
 	case hasAny(lower, "fisheye", "_fish", "-fish"):
 		g.Projection = projection.Fisheye180
 		g.Why += "; name says fisheye"
-	case hasAny(lower, "360", "_sphere", "-sphere", "equirect"):
-		g.Projection = projection.Sphere360
-		g.Why += "; name says 360"
-	case hasAny(lower, "180", "vr180", "hemisphere"):
+	case hasAny(lower, "vr180", "hemisphere") || hasNumberMarker(lower, "180"):
 		g.Projection = projection.Hemisphere180
 		g.Why += "; name says 180"
+	case hasAny(lower, "_sphere", "-sphere", "equirect") || hasNumberMarker(lower, "360"):
+		g.Projection = projection.Sphere360
+		g.Why += "; name says 360"
 	case eye.W > 0 && eye.H > 0 && nearAspect(eye.W, eye.H, 2, 1):
 		// A 2:1 eye is the equirectangular signature, and by convention a bare
 		// 2:1 is a full sphere.
@@ -111,6 +120,34 @@ func Detect(name string, w, h int) Geometry {
 	}
 	return g
 }
+
+// hasNumberMarker reports whether s contains marker as a NUMBER rather than as
+// a run of digits inside a longer one.
+//
+// A plain substring test is far too loose for a bare number, and real filenames
+// prove it: "3600p" contains "360", and so does the date in
+// "POVROriginals.23.03.08...3600p". Both made a VR180 file read as a full
+// sphere, which shows the world squeezed into half the view. So a digit on
+// either side disqualifies a match -- "vr180" and "holiday_360_sbs" still
+// match, "3600p" and "230308" do not.
+func hasNumberMarker(s, marker string) bool {
+	for i := 0; i+len(marker) <= len(s); i++ {
+		if s[i:i+len(marker)] != marker {
+			continue
+		}
+		if i > 0 && isDigit(s[i-1]) {
+			continue
+		}
+		if j := i + len(marker); j < len(s) && isDigit(s[j]) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// isDigit reports whether b is an ASCII digit.
+func isDigit(b byte) bool { return b >= '0' && b <= '9' }
 
 // hasAny reports whether s contains any of the substrings.
 func hasAny(s string, subs ...string) bool {

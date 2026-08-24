@@ -78,6 +78,7 @@ until head tracking arrives.
 | container | path | notes |
 |---|---|---|
 | MP4, MOV, M4V | `AVPlayer` | demux, decode **and sound**, with a clock of its own |
+| MP4 that AVFoundation refuses | the demuxed path, **automatically** | silent, but it plays |
 | **MKV, WebM** | [`go-avkit/avkit/container`](https://github.com/go-avkit/avkit) demux + [`go-macos/videotoolbox`](https://github.com/go-macos/videotoolbox) | AVFoundation refuses Matroska outright |
 
 The choice is made from what the file **is**, not by trying AVFoundation and
@@ -92,6 +93,48 @@ It also **reorders**. VideoToolbox emits frames in decoding order, so a stream
 with B-frames hands them over out of presentation order; showing them as they
 arrive plays the picture with a stutter that reads as a decode fault and is not
 one. Up to 8 frames are held back and emitted by timestamp.
+
+## Controls
+
+| key | |
+|---|---|
+| `space` / `k` | pause, resume |
+| `←` `→` / `j` `l` | seek 10 s |
+| `↑` `↓` | volume |
+| `Esc` / `q` | quit |
+
+Both the arrows and `j`/`k`/`l` are bound: `j`/`k`/`l` is what every video player
+has taught people, and the arrows are what everyone tries first. An unknown key
+does **nothing** — it used to quit, which meant brushing the keyboard closed the
+film, and a viewer in a headset cannot see what they pressed.
+
+Seeking and volume need a clocked source, so they apply to the AVPlayer path.
+Pause works everywhere: a pull decoder is stopped and the stopped time is given
+back, so a resumed video carries on instead of racing to catch up.
+
+## Opening is not working
+
+A source is accepted only once it has actually **produced a picture**.
+
+That distinction earns its keep on real files. A 7200x3600 VR180 recording stored
+as `hev1` — HEVC with its parameter sets in the *bitstream* rather than the
+sample description — is **opened by AVPlayer without complaint and then never
+becomes ready**, while `AVAssetReader` fails it outright. VideoToolbox decodes
+the same file happily from the parameter sets the demuxer recovers. So when the
+first candidate cannot produce a frame, the demuxed path is tried, and the
+fallback says so in the log:
+
+```
+  AVFoundation could not play this file (no picture within 10s; the item never
+  became ready); trying the demuxer
+  7200x3600  59.939 fps  43m58.358s
+  via mp4 (avkit demux + VideoToolbox)
+  content   equirectangular 180x180, side-by-side eyes
+  view      100.0% of the view covered
+```
+
+When the second path fails too, **both** failures are reported. A fallback that
+hid the first error would turn a genuinely broken file into a puzzle.
 
 ## Limits
 

@@ -143,3 +143,91 @@ func TestHasAny(t *testing.T) {
 		t.Error("hasAny with no needles should be false")
 	}
 }
+
+// TestDetectOnRealWorldNames is the regression test for two faults that only a
+// real file exposed. Every case here comes from an actual path on disk, not from
+// a tidy name invented to pass.
+func TestDetectOnRealWorldNames(t *testing.T) {
+	// The fault: "3600p" contains "360", and so does the date in "230308".
+	// Both made a VR180 file read as a full sphere — which shows the world
+	// squeezed into half the view, the exact failure the reasoning string exists
+	// to make explicable.
+	const realPath = "/Users/x/Movies/POVROriginals.23.03.08.Maddy.May.XXX.VR180.3600p.MP4-VACCiNE[XC]/vac-povro230308mm-3600.mp4"
+	g := Detect(realPath, 7200, 3600)
+	if g.Projection.HSpanDeg != 180 {
+		t.Errorf("real VR180 path detected as %.0f degrees wide, want 180 (why: %s)", g.Projection.HSpanDeg, g.Why)
+	}
+	if g.Format.Layout != stereo.SideBySide {
+		t.Errorf("real VR180 path detected as %v, want side-by-side (why: %s)", g.Format.Layout, g.Why)
+	}
+
+	// The marker often lives in the FOLDER, not the file: the file itself here
+	// is just "vac-povro230308mm-3600.mp4". Detect is given the whole path for
+	// exactly that reason.
+	base := Detect("vac-povro230308mm-3600.mp4", 7200, 3600)
+	if base.Projection.HSpanDeg == 180 {
+		t.Error("the bare filename should NOT be enough to say 180; that would be luck, not detection")
+	}
+	if strings.Contains(base.Why, "says 360") {
+		t.Errorf("a resolution of 3600 was read as a 360 marker: %s", base.Why)
+	}
+}
+
+// TestHasNumberMarker pins the boundary rule that fixed the above: a run of
+// digits inside a longer number is not a marker.
+func TestHasNumberMarker(t *testing.T) {
+	for _, tc := range []struct {
+		s, marker string
+		want      bool
+	}{
+		{"holiday_360_sbs.mp4", "360", true},
+		{"clip-360.mp4", "360", true},
+		{"360.mp4", "360", true},
+		{"vr180", "180", true},
+		{"dive_180_sbs", "180", true},
+		// The real-world false positives.
+		{"3600p", "360", false},
+		{"povro230308mm-3600", "360", false},
+		{"7200x3600", "360", false},
+		{"1800p", "180", false},
+		{"x1802", "180", false},
+		// A digit BEFORE the marker disqualifies it too: 1360 is not 360.
+		{"clip1360.mp4", "360", false},
+		{"v2180p", "180", false},
+		// Absent entirely.
+		{"holiday.mp4", "360", false},
+		{"", "360", false},
+	} {
+		if got := hasNumberMarker(tc.s, tc.marker); got != tc.want {
+			t.Errorf("hasNumberMarker(%q, %q) = %v, want %v", tc.s, tc.marker, got, tc.want)
+		}
+	}
+}
+
+func TestIsDigit(t *testing.T) {
+	for _, b := range []byte{'0', '5', '9'} {
+		if !isDigit(b) {
+			t.Errorf("isDigit(%q) = false", b)
+		}
+	}
+	for _, b := range []byte{'a', '/', ':', 'z', '.'} {
+		if isDigit(b) {
+			t.Errorf("isDigit(%q) = true", b)
+		}
+	}
+}
+
+// TestVR180ImpliesStereo pins that the format name alone settles the packing,
+// while a bare 180 does not: a monoscopic hemisphere is a real thing.
+func TestVR180ImpliesStereo(t *testing.T) {
+	if g := Detect("clip_vr180.mp4", 7200, 3600); g.Format.Layout != stereo.SideBySide {
+		t.Errorf("vr180 gave %v, want side-by-side (why: %s)", g.Format.Layout, g.Why)
+	}
+	if g := Detect("clip_180.mp4", 3840, 1920); g.Format.Layout != stereo.Mono {
+		t.Errorf("a bare 180 gave %v, want mono (why: %s)", g.Format.Layout, g.Why)
+	}
+	// An explicit packing still wins over the format name.
+	if g := Detect("clip_vr180_ou.mp4", 3840, 3840); g.Format.Layout != stereo.OverUnder {
+		t.Errorf("explicit over-under gave %v (why: %s)", g.Format.Layout, g.Why)
+	}
+}

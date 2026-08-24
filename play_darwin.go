@@ -149,23 +149,18 @@ func Play(cfg Config) error {
 	// AppKit exists now and its run loop is NOT yet running -- window.Run has not
 	// been called -- which is the one window in which a clocked source can be
 	// loaded by pumping the main run loop.
-	src, err := openSource(cfg.Path)
+	// The decoder pads rows, and by how much is not knowable until a frame comes
+	// out -- but the sampling tables bake the stride into every offset, so it has
+	// to be known BEFORE they are built. openPlaying therefore hands back a
+	// source that has already produced one, and that first frame is kept: opening
+	// the file again to measure it would mean reading a fifteen-gigabyte
+	// recording twice.
+	src, clock, first, err := openPlaying(cfg.Path, cfg.logf)
 	if err != nil {
-		return err
+		return fmt.Errorf("player: cannot play %s: %w", cfg.Path, err)
 	}
 	defer src.Close()
 	info := src.Info()
-
-	// The decoder pads rows, and by how much is not knowable until a frame comes
-	// out -- but the sampling tables bake the stride into every offset, so it has
-	// to be known BEFORE they are built. So the first frame is pulled here and
-	// kept: opening the file a second time to measure it would mean reading a
-	// two-gigabyte film twice.
-	clock, _ := src.(clocked)
-	first, err := firstFrame(src, clock)
-	if err != nil {
-		return fmt.Errorf("player: cannot decode a first frame of %s: %w", cfg.Path, err)
-	}
 	strideWords := first.StrideWords
 
 	geom := Detect(cfg.Path, info.Width, info.Height)
@@ -217,11 +212,63 @@ func Play(cfg Config) error {
 			return v.frame()
 		}
 	}
+	pause := newPauser()
+	volume := 1.0
 	surface.OnInput = func(ev toolkit.Event) {
-		// Any key ends playback: this is a full-screen window with no chrome, so
-		// there has to be an obvious way out.
-		if ev.Kind == toolkit.EventKeyDown {
+		if ev.Kind != toolkit.EventKeyDown {
+			return
+		}
+		switch KeyAction(ev.Code) {
+		case ActionQuit:
 			closeStop()
+		case ActionTogglePause:
+			// The pauser is toggled either way: a clocked source stops its own
+			// clock, and a pull decoder needs the stopped time accounted for or
+			// it would race to catch up on resume.
+			if pause.Toggle() {
+				if clock != nil {
+					clock.Pause()
+				}
+				cfg.logf("paused")
+			} else {
+				if clock != nil {
+					clock.Play()
+				}
+				cfg.logf("resumed")
+			}
+		case ActionSeekBack, ActionSeekForward:
+			if clock == nil {
+				cfg.logf("seeking needs a clocked source; this file is decoded by pulling")
+				break
+			}
+			step := SeekStep
+			if KeyAction(ev.Code) == ActionSeekBack {
+				step = -step
+			}
+			at := clock.CurrentTime() + step
+			if at < 0 {
+				at = 0
+			}
+			if d := info.Duration; d > 0 && at > d {
+				at = d
+			}
+			if err := clock.Seek(at); err != nil {
+				cfg.logf("seek failed: %v", err)
+			} else {
+				cfg.logf("at %v", at.Round(time.Second))
+			}
+		case ActionVolumeUp, ActionVolumeDown:
+			if clock == nil {
+				cfg.logf("this file is played without sound")
+				break
+			}
+			step := VolumeStep
+			if KeyAction(ev.Code) == ActionVolumeDown {
+				step = -step
+			}
+			volume = clampVolume(volume + step)
+			clock.SetVolume(volume)
+			cfg.logf("volume %.0f%%", volume*100)
 		}
 	}
 
@@ -276,7 +323,7 @@ func Play(cfg Config) error {
 		}()
 	} else {
 		go func() {
-			v.decode(src, first, cfg, stop, repaint)
+			v.decode(src, first, cfg, stop, repaint, pause)
 			// Decoding is what the window is for, so when it ends the window should
 			// go too -- otherwise a finished file leaves a black rectangle over the
 			// display with no way out but a keypress.
@@ -365,7 +412,7 @@ func (v *view) present() {
 }
 
 // decode pulls frames, waits for each one's moment, warps it and presents it.
-func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struct{}, repaint func()) {
+func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struct{}, repaint func(), pause *pauser) {
 	var (
 		start  time.Time
 		shown  int
@@ -398,13 +445,23 @@ func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struc
 			return
 		}
 		if err != nil {
-			cfg.logf("decode stopped: %v", err)
+			// A stop closes the source from under this goroutine, so a failure
+			// here is expected during shutdown and reporting it would print an
+			// alarming line for an ordinary quit.
+			select {
+			case <-stop:
+			default:
+				cfg.logf("decode stopped: %v", err)
+			}
 			return
 		}
 
 		// Wait for this frame's moment. Being late is normal and recoverable;
 		// being early and not waiting would play the file as fast as it decodes.
-		if d := f.PTS - time.Since(start); d > 0 {
+		// Wait out a pause before timing anything: the stopped time is given back
+		// through the offset, so a resumed video carries on rather than racing.
+		pause.Wait(stop)
+		if d := f.PTS - (time.Since(start) - pause.Offset()); d > 0 {
 			select {
 			case <-time.After(d):
 			case <-stop:
@@ -500,7 +557,19 @@ const firstFrameTimeout = 10 * time.Second
 // its first half-second of sound before the window is even on screen.
 func firstFrame(src source, clock clocked) (*srcFrame, error) {
 	if clock == nil {
-		return src.Next()
+		f, err := src.Next()
+		if err != nil {
+			return nil, err
+		}
+		if f == nil {
+			// A pull source always has a frame or an error. Getting neither means
+			// a POLL source arrived here, which happens when a clocked type
+			// quietly stops satisfying the interface -- a missing method makes
+			// the assertion in Play fail silently. Say so instead of handing
+			// back a nil the caller will dereference.
+			return nil, fmt.Errorf("the source yielded no frame and no error; it is a poll source taking the pull path")
+		}
+		return f, nil
 	}
 	clock.SetVolume(0)
 	deadline := time.Now().Add(firstFrameTimeout)
