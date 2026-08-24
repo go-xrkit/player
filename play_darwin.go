@@ -214,61 +214,85 @@ func Play(cfg Config) error {
 	}
 	pause := newPauser()
 	volume := 1.0
-	surface.OnInput = func(ev toolkit.Event) {
-		if ev.Kind != toolkit.EventKeyDown {
+
+	// The keyboard and the on-screen buttons drive the SAME closures. Two copies
+	// of what "pause" means is how they drift apart.
+	togglePause := func() {
+		if pause.Toggle() {
+			if clock != nil {
+				clock.Pause()
+			}
+			cfg.logf("paused")
+		} else {
+			if clock != nil {
+				clock.Play()
+			}
+			cfg.logf("resumed")
+		}
+	}
+	seekTo := func(at time.Duration) {
+		if clock == nil {
+			cfg.logf("seeking needs a clocked source; this file is decoded by pulling")
 			return
 		}
+		if at < 0 {
+			at = 0
+		}
+		if d := info.Duration; d > 0 && at > d {
+			at = d
+		}
+		if err := clock.Seek(at); err != nil {
+			cfg.logf("seek failed: %v", err)
+		} else {
+			cfg.logf("at %v", at.Round(time.Second))
+		}
+	}
+	seekBy := func(d time.Duration) {
+		if clock == nil {
+			cfg.logf("seeking needs a clocked source; this file is decoded by pulling")
+			return
+		}
+		seekTo(clock.CurrentTime() + d)
+	}
+	setVolume := func(v float64) {
+		if clock == nil {
+			cfg.logf("this file is played without sound")
+			return
+		}
+		volume = clampVolume(v)
+		clock.SetVolume(volume)
+		cfg.logf("volume %.0f%%", volume*100)
+	}
+
+	// noteActivity is assigned once the overlay exists; until then a key press
+	// simply does its job without waking a bar that is not built yet.
+	noteActivity := func() {}
+
+	surface.OnInput = func(ev toolkit.Event) {
+		switch ev.Kind {
+		case toolkit.EventMouseMove:
+			// Moving the pointer is what brings the controls up, exactly as every
+			// other player does it.
+			noteActivity()
+			return
+		case toolkit.EventKeyDown:
+		default:
+			return
+		}
+		noteActivity()
 		switch KeyAction(ev.Code) {
 		case ActionQuit:
 			closeStop()
 		case ActionTogglePause:
-			// The pauser is toggled either way: a clocked source stops its own
-			// clock, and a pull decoder needs the stopped time accounted for or
-			// it would race to catch up on resume.
-			if pause.Toggle() {
-				if clock != nil {
-					clock.Pause()
-				}
-				cfg.logf("paused")
-			} else {
-				if clock != nil {
-					clock.Play()
-				}
-				cfg.logf("resumed")
-			}
-		case ActionSeekBack, ActionSeekForward:
-			if clock == nil {
-				cfg.logf("seeking needs a clocked source; this file is decoded by pulling")
-				break
-			}
-			step := SeekStep
-			if KeyAction(ev.Code) == ActionSeekBack {
-				step = -step
-			}
-			at := clock.CurrentTime() + step
-			if at < 0 {
-				at = 0
-			}
-			if d := info.Duration; d > 0 && at > d {
-				at = d
-			}
-			if err := clock.Seek(at); err != nil {
-				cfg.logf("seek failed: %v", err)
-			} else {
-				cfg.logf("at %v", at.Round(time.Second))
-			}
-		case ActionVolumeUp, ActionVolumeDown:
-			if clock == nil {
-				cfg.logf("this file is played without sound")
-				break
-			}
-			step := VolumeStep
-			if KeyAction(ev.Code) == ActionVolumeDown {
-				step = -step
-			}
-			volume = clampVolume(volume + step)
-			clock.SetVolume(volume)
-			cfg.logf("volume %.0f%%", volume*100)
+			togglePause()
+		case ActionSeekBack:
+			seekBy(-SeekStep)
+		case ActionSeekForward:
+			seekBy(SeekStep)
+		case ActionVolumeUp:
+			setVolume(volume + VolumeStep)
+		case ActionVolumeDown:
+			setVolume(volume - VolumeStep)
 		}
 	}
 
@@ -290,6 +314,81 @@ func Play(cfg Config) error {
 		}()
 	}
 
+	// --- the transport overlay ----------------------------------------------
+	//
+	// Content is the video; the controls are a layer above it. Events route
+	// top-down, so a click on a button reaches the button and everything else
+	// falls through to the video.
+	overlay := toolkit.NewOverlay(surface)
+	var barMu sync.Mutex
+	lastActivity := time.Now()
+	barUp := false
+
+	noteActivity = func() {
+		barMu.Lock()
+		lastActivity = time.Now()
+		up := barUp
+		barMu.Unlock()
+		if !up {
+			barMu.Lock()
+			barUp = true
+			barMu.Unlock()
+		}
+	}
+
+	var bar *controlBar
+	acts := barActions{TogglePause: togglePause}
+	if clock != nil {
+		acts.Restart = func() { seekTo(0) }
+		acts.Back = func() { seekBy(-SeekStep) }
+		acts.Forward = func() { seekBy(SeekStep) }
+		acts.ToggleMute = func() {
+			if volume > 0 {
+				setVolume(0)
+			} else {
+				setVolume(1)
+			}
+			bar.SetMuted(volume == 0)
+		}
+		acts.SeekTo = func(f float64) { seekTo(seekTarget(f, info.Duration)) }
+	}
+	bar = newControlBar(acts)
+	bar.Layout(fbW, fbH, len(v.maps))
+	barLayer := &activityWidget{Widget: bar.Root(), seen: noteActivity}
+
+	// The bar is pushed and cleared rather than hidden, because a layer that is
+	// not there cannot swallow a click meant for the video.
+	showBar := func(show bool) {
+		if show {
+			if len(overlay.Layers) == 0 {
+				overlay.Push(barLayer)
+			}
+			return
+		}
+		overlay.Clear()
+	}
+
+	go func() {
+		t := time.NewTicker(200 * time.Millisecond)
+		defer t.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-t.C:
+				barMu.Lock()
+				want := time.Since(lastActivity) < hideAfter
+				changed := want != barUp
+				barUp = want
+				barMu.Unlock()
+				if changed {
+					showBar(want)
+					repaint()
+				}
+			}
+		}
+	}()
+
 	if clock != nil {
 		// The first frame is already in hand; show it, then let the clock run.
 		v.composeInto(v.front, first)
@@ -310,6 +409,10 @@ func Play(cfg Config) error {
 				case <-stop:
 					return
 				case <-t.C:
+					// The bar reads the clock rather than being told: one source of
+					// truth, and a seek made with the keyboard moves the slider too.
+					bar.SetPlaying(!pause.Paused())
+					bar.SetProgress(clock.CurrentTime(), info.Duration)
 					repaint()
 					// AVPlayer has no end-of-playback signal, so the end is
 					// noticed by the clock reaching the duration.
@@ -323,7 +426,7 @@ func Play(cfg Config) error {
 		}()
 	} else {
 		go func() {
-			v.decode(src, first, cfg, stop, repaint, pause)
+			v.decode(src, first, cfg, stop, repaint, pause, bar, info.Duration)
 			// Decoding is what the window is for, so when it ends the window should
 			// go too -- otherwise a finished file leaves a black rectangle over the
 			// display with no way out but a keypress.
@@ -337,7 +440,7 @@ func Play(cfg Config) error {
 		<-stop
 		win.Close()
 	}()
-	return win.Run(surface)
+	return win.Run(overlay)
 }
 
 // view holds the composed framebuffer and the tables that fill it.
@@ -412,7 +515,7 @@ func (v *view) present() {
 }
 
 // decode pulls frames, waits for each one's moment, warps it and presents it.
-func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struct{}, repaint func(), pause *pauser) {
+func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struct{}, repaint func(), pause *pauser, bar *controlBar, total time.Duration) {
 	var (
 		start  time.Time
 		shown  int
@@ -473,11 +576,16 @@ func (v *view) decode(src source, first *srcFrame, cfg Config, stop <-chan struc
 		}
 		frames++
 
+		pts := f.PTS
 		for i, m := range v.maps {
 			m.ApplySwapRB(f.Pix, v.back, v.fbW, i*v.eyeW, black)
 		}
 		f.Release()
 		v.present()
+		if bar != nil {
+			bar.SetPlaying(!pause.Paused())
+			bar.SetProgress(pts, total)
+		}
 		repaint()
 		shown++
 
@@ -593,4 +701,21 @@ func firstFrame(src source, clock clocked) (*srcFrame, error) {
 	clock.Pause()
 	clock.SetVolume(1)
 	return nil, fmt.Errorf("no picture within %v; the item never became ready", firstFrameTimeout)
+}
+
+// activityWidget notices that the viewer is doing something and passes the event
+// on unchanged.
+//
+// It draws nothing and decides nothing: it exists because the controls hide
+// themselves after a few idle seconds, and while the pointer is OVER the bar the
+// events go to the bar rather than to the video underneath — so without this the
+// overlay would vanish from under the hand using it.
+type activityWidget struct {
+	toolkit.Widget
+	seen func()
+}
+
+func (a *activityWidget) OnEvent(ev toolkit.Event) {
+	a.seen()
+	a.Widget.OnEvent(ev)
 }

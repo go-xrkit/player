@@ -96,6 +96,28 @@ one. Up to 8 frames are held back and emitted by timestamp.
 
 ## Controls
 
+The transport bar appears when the pointer moves and hides after three idle
+seconds, the way every video player does it. Every element is a go-widgets
+widget and every glyph an Iconoir drawing through `Button`'s icon seam — nothing
+here paints a pixel of its own, because a hand-drawn bar is a private set of
+shapes that no theme, no HiDPI scale and no accessibility walk knows about.
+
+```
+  37:12  ──────────────────────────●───   43:58
+            ⏮   ⏪15   ⏸   ⏩15   🔊
+```
+
+It sits over a dark scrim: white text on a bright shot is unreadable, and XR
+optics wash blacks out, so the veil is tuned darker than a desk monitor would
+need. In a side-by-side 3D mode it stays in the **left eye's half** — drawn
+across the panel it would appear twice, at different depths, and read as a
+double image.
+
+**The pointer has to be over the glasses' display for the bar to appear.** That
+is how a full-screen player on a second monitor behaves; the keyboard works
+wherever the pointer is.
+
+
 | key | |
 |---|---|
 | `space` / `k` | pause, resume |
