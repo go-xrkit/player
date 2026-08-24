@@ -80,24 +80,15 @@ func (c Config) logf(format string, args ...any) {
 // It must be called from the process main goroutine: the window back-end pins
 // that thread for AppKit, which requires it.
 func Play(cfg Config) error {
-	src, err := openSource(cfg.Path)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-	info := src.Info()
-
-	// The decoder pads rows, and by how much is not knowable until a frame comes
-	// out -- but the sampling tables bake the stride into every offset, so it has
-	// to be known BEFORE they are built. So the first frame is pulled here and
-	// kept: opening the file a second time to measure it would mean reading a
-	// two-gigabyte film twice.
-	first, err := src.Next()
-	if err != nil {
-		return fmt.Errorf("player: cannot decode a first frame of %s: %w", cfg.Path, err)
-	}
-	strideWords := first.StrideWords
-
+	// ORDER MATTERS HERE, and it cost a crash to learn.
+	//
+	// AppKit is built FIRST -- the window, and with it NSApplication -- and only
+	// then is AVFoundation touched. Opening a player before NSApplication exists,
+	// and pumping the main run loop to load it, leaves AppKit half-initialised:
+	// -[NSApplication finishLaunching] later pops an autorelease pool holding a
+	// half-built NSView and dies in -[NSView _finalize] with an unrecognised
+	// selector on its backing layer. The stack names AppKit, so it reads like an
+	// AppKit bug; it is an ordering mistake.
 	screens, err := window.Screens()
 	if err != nil {
 		return fmt.Errorf("player: cannot enumerate displays: %w", err)
@@ -124,17 +115,7 @@ func Play(cfg Config) error {
 	if cfg.Mono {
 		stereoscopic = false
 	}
-	geom := Detect(cfg.Path, info.Width, info.Height)
-	if cfg.Geometry != nil {
-		geom = *cfg.Geometry
-		geom.Why = "given by the caller"
-	}
 
-	cfg.logf("file      %s", cfg.Path)
-	cfg.logf("  %dx%d  %.3f fps  %v", info.Width, info.Height, info.FrameRate, info.Duration.Round(time.Millisecond))
-	cfg.logf("  via %s", info.Container)
-	cfg.logf("content   %s", geom)
-	cfg.logf("  because: %s", geom.Why)
 	cfg.logf("display   %s", chosen)
 	if advice := ScalingAdvice(chosen); advice != "" {
 		cfg.logf("  WARNING: %s", advice)
@@ -165,6 +146,39 @@ func Play(cfg Config) error {
 		return fmt.Errorf("player: the window reported a %dx%d framebuffer", fbW, fbH)
 	}
 
+	// AppKit exists now and its run loop is NOT yet running -- window.Run has not
+	// been called -- which is the one window in which a clocked source can be
+	// loaded by pumping the main run loop.
+	src, err := openSource(cfg.Path)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	info := src.Info()
+
+	// The decoder pads rows, and by how much is not knowable until a frame comes
+	// out -- but the sampling tables bake the stride into every offset, so it has
+	// to be known BEFORE they are built. So the first frame is pulled here and
+	// kept: opening the file a second time to measure it would mean reading a
+	// two-gigabyte film twice.
+	clock, _ := src.(clocked)
+	first, err := firstFrame(src, clock)
+	if err != nil {
+		return fmt.Errorf("player: cannot decode a first frame of %s: %w", cfg.Path, err)
+	}
+	strideWords := first.StrideWords
+
+	geom := Detect(cfg.Path, info.Width, info.Height)
+	if cfg.Geometry != nil {
+		geom = *cfg.Geometry
+		geom.Why = "given by the caller"
+	}
+	cfg.logf("file      %s", cfg.Path)
+	cfg.logf("  %dx%d  %.3f fps  %v", info.Width, info.Height, info.FrameRate, info.Duration.Round(time.Millisecond))
+	cfg.logf("  via %s", info.Container)
+	cfg.logf("content   %s", geom)
+	cfg.logf("  because: %s", geom.Why)
+
 	v := newView(fbW, fbH, stereoscopic, geom, info, strideWords, cfg.fovOrDefault())
 	cfg.logf("view      %d eye(s) of %dx%d, %.0f deg vertical, %.1f%% of the view covered",
 		len(v.maps), v.eyeW, v.eyeH, cfg.fovOrDefault(), v.coverage*100)
@@ -174,7 +188,35 @@ func Play(cfg Config) error {
 	closeStop := func() { once.Do(func() { close(stop) }) }
 	defer closeStop()
 
+	shown := 0
 	surface := toolkit.NewSurface(v.frame)
+	if clock != nil {
+		// A clocked source must be polled from the MAIN thread, and the paint
+		// callback is the only place in this program that runs there once the
+		// window owns the run loop. So the warp happens inside the paint: at 3 ms
+		// for both eyes against a 16.6 ms budget, that is affordable, and it
+		// removes the double buffer and its lock entirely -- poll and paint are
+		// the same thread, serialised by construction.
+		surface.Frame = func() ([]byte, int, int) {
+			f, err := src.Next()
+			if err != nil {
+				cfg.logf("playback stopped: %v", err)
+				closeStop()
+			} else if f != nil {
+				v.composeInto(v.front, f)
+				f.Release()
+				shown++
+				if cfg.Snapshot != "" && shown == cfg.SnapshotAfter+1 {
+					if err := v.writeSnapshot(cfg.Snapshot); err != nil {
+						cfg.logf("snapshot failed: %v", err)
+					} else {
+						cfg.logf("snapshot of frame %d written to %s", shown-1, cfg.Snapshot)
+					}
+				}
+			}
+			return v.frame()
+		}
+	}
 	surface.OnInput = func(ev toolkit.Event) {
 		// Any key ends playback: this is a full-screen window with no chrome, so
 		// there has to be an obvious way out.
@@ -201,13 +243,46 @@ func Play(cfg Config) error {
 		}()
 	}
 
-	go func() {
-		v.decode(src, first, cfg, stop, repaint)
-		// Decoding is what the window is for, so when it ends the window should
-		// go too -- otherwise a finished file leaves a black rectangle over the
-		// display with no way out but a keypress.
-		closeStop()
-	}()
+	if clock != nil {
+		// The first frame is already in hand; show it, then let the clock run.
+		v.composeInto(v.front, first)
+		first.Release()
+		shown = 1
+		clock.Play()
+		cfg.logf("playing with sound")
+
+		// Nothing pushes a frame at us: the player is asked. So a repaint is
+		// asked for on a ticker, and the paint decides whether the picture has
+		// moved on. The rate is the display's, not the video's -- asking more
+		// often than the video changes costs one poll that answers nothing.
+		go func() {
+			t := time.NewTicker(time.Second / 60)
+			defer t.Stop()
+			for {
+				select {
+				case <-stop:
+					return
+				case <-t.C:
+					repaint()
+					// AVPlayer has no end-of-playback signal, so the end is
+					// noticed by the clock reaching the duration.
+					if d := info.Duration; d > 0 && clock.CurrentTime() >= d-100*time.Millisecond {
+						cfg.logf("end of file after %d frames", shown)
+						closeStop()
+						return
+					}
+				}
+			}
+		}()
+	} else {
+		go func() {
+			v.decode(src, first, cfg, stop, repaint)
+			// Decoding is what the window is for, so when it ends the window should
+			// go too -- otherwise a finished file leaves a black rectangle over the
+			// display with no way out but a keypress.
+			closeStop()
+		}()
+	}
 
 	// Run returns when the window closes. Nothing closes it from the outside
 	// yet, so a stop has to be turned into one.
@@ -398,4 +473,55 @@ func asBytes(w []uint32) []byte {
 		return nil
 	}
 	return unsafe.Slice((*byte)(unsafe.Pointer(&w[0])), len(w)*4)
+}
+
+// composeInto warps a frame into dst, one eye at a time.
+func (v *view) composeInto(dst []uint32, f *srcFrame) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	for i, m := range v.maps {
+		m.ApplySwapRB(f.Pix, dst, v.fbW, i*v.eyeW, black)
+	}
+	v.bytes = asBytes(dst)
+}
+
+// firstFrameTimeout bounds the wait for a clocked source's first picture. It is
+// generous: a cold file on a slow disk takes a moment, and failing early would
+// blame the player for the storage.
+const firstFrameTimeout = 10 * time.Second
+
+// firstFrame gets one picture out of a source, which is what teaches the warp
+// tables the decoder's row stride.
+//
+// A pull source hands one over on request. A clocked source has to be asked
+// repeatedly while the MAIN run loop is pumped, because that is what loads the
+// file — and if it still has nothing, it is started, since some items vend no
+// buffer until the clock moves. It is muted for that: a file should not blurt
+// its first half-second of sound before the window is even on screen.
+func firstFrame(src source, clock clocked) (*srcFrame, error) {
+	if clock == nil {
+		return src.Next()
+	}
+	clock.SetVolume(0)
+	deadline := time.Now().Add(firstFrameTimeout)
+	started := false
+	for time.Now().Before(deadline) {
+		clock.Pump(20 * time.Millisecond)
+		f, err := src.Next()
+		if err != nil {
+			return nil, err
+		}
+		if f != nil {
+			clock.Pause()
+			clock.SetVolume(1)
+			return f, nil
+		}
+		if !started && time.Now().Add(firstFrameTimeout/2).After(deadline) {
+			started = true
+			clock.Play()
+		}
+	}
+	clock.Pause()
+	clock.SetVolume(1)
+	return nil, fmt.Errorf("no picture within %v; the item never became ready", firstFrameTimeout)
 }
