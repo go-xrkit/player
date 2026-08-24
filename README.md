@@ -73,10 +73,33 @@ sampling is the same on every frame, and the whole two-eye pass costs 3 ms at
 4K (8 ms at 8K) against a 16.6 ms budget at 60 Hz. A GPU warp is not needed
 until head tracking arrives.
 
+## Two ways in, chosen by what the file is
+
+| container | path | notes |
+|---|---|---|
+| MP4, MOV, M4V | AVFoundation | demux and decode in one |
+| **MKV, WebM** | [`go-avkit/avkit/container`](https://github.com/go-avkit/avkit) demux + [`go-macos/videotoolbox`](https://github.com/go-macos/videotoolbox) | AVFoundation refuses Matroska outright |
+
+The choice is made from what the file **is**, not by trying AVFoundation and
+falling back on its refusal — a fallback would also swallow the failures that
+are genuinely about a broken file.
+
+The Matroska path costs memory: `avkit`'s reader is handed a byte slice, so a
+feature film is **resident while it plays** (about 2 GB for a 1 h 32 encode).
+That is why it is chosen only for the containers AVFoundation will not open.
+
+It also **reorders**. VideoToolbox emits frames in decoding order, so a stream
+with B-frames hands them over out of presentation order; showing them as they
+arrive plays the picture with a stutter that reads as a decode fault and is not
+one. Up to 8 frames are held back and emitted by timestamp.
+
 ## Limits
 
-- **No Matroska.** AVFoundation does not demux MKV or WebM. MP4/MOV/M4V work.
 - **No seeking, no audio, no loop.** A file plays through once, silently.
+  `go-macos/avfoundation` now has a `Player` with sound, seeking and rate, but
+  it must be driven from the main thread, which is a different loop shape than
+  the one here.
+- **AV1, VP9 and VP8 in Matroska are not decoded** — H.264 and HEVC only.
 - **macOS only.** The geometry and display logic here are portable and tested
   everywhere; the decoder and window back-ends are not written for Linux or
   Windows yet.
