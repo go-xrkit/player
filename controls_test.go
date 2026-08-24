@@ -152,3 +152,102 @@ func TestPauserWaitWakesOnStop(t *testing.T) {
 		t.Fatal("Wait did not wake on stop; quitting while paused would hang")
 	}
 }
+
+// TestBarVisibilityComesBackAfterHiding is the regression test for the bug that
+// made the controls appear exactly once.
+//
+// The first version noted activity by setting the "shown" flag directly, so the
+// ticker compared the flag to itself, found no change, and never pushed the
+// overlay again. Every part looked right on its own; only the sequence was
+// wrong, which is why the sequence is what this walks.
+func TestBarVisibilityComesBackAfterHiding(t *testing.T) {
+	now := time.Unix(1000, 0)
+	v := newBarVisibility()
+	v.now = func() time.Time { return now }
+	v.last = now
+
+	// It starts up, so the first Update reports the change from nothing.
+	if show, changed := v.Update(); !show || !changed {
+		t.Fatalf("first Update = (%v,%v), want shown and changed", show, changed)
+	}
+	// Asking again while nothing happens is not a change.
+	if show, changed := v.Update(); !show || changed {
+		t.Fatalf("second Update = (%v,%v), want shown and unchanged", show, changed)
+	}
+
+	// Idle past the timeout: it hides, once.
+	now = now.Add(hideAfter + time.Second)
+	if show, changed := v.Update(); show || !changed {
+		t.Fatalf("after idling = (%v,%v), want hidden and changed", show, changed)
+	}
+	if show, changed := v.Update(); show || changed {
+		t.Fatalf("still idle = (%v,%v), want hidden and unchanged", show, changed)
+	}
+
+	// THE BUG: moving the pointer again must bring it back, and must report the
+	// change so the caller actually pushes the layer.
+	v.Note()
+	show, changed := v.Update()
+	if !show {
+		t.Fatal("after activity the bar is not shown; it appeared once and never again")
+	}
+	if !changed {
+		t.Fatal("after activity the bar is shown but the change was not REPORTED; " +
+			"the caller never pushes the overlay, which is exactly the bug")
+	}
+
+	// And it hides again after the next idle stretch, so this is a cycle and not
+	// a one-shot.
+	now = now.Add(hideAfter + time.Second)
+	if show, changed := v.Update(); show || !changed {
+		t.Fatalf("second hide = (%v,%v), want hidden and changed", show, changed)
+	}
+	v.Note()
+	if show, changed := v.Update(); !show || !changed {
+		t.Fatalf("second show = (%v,%v), want shown and changed", show, changed)
+	}
+}
+
+func TestBarVisibilityShown(t *testing.T) {
+	now := time.Unix(0, 0)
+	v := newBarVisibility()
+	v.now = func() time.Time { return now }
+	v.last = now
+	if v.Shown() {
+		t.Error("Shown() is true before any Update decided anything")
+	}
+	v.Update()
+	if !v.Shown() {
+		t.Error("Shown() is false after an Update that showed it")
+	}
+	now = now.Add(hideAfter * 2)
+	v.Update()
+	if v.Shown() {
+		t.Error("Shown() is true after an Update that hid it")
+	}
+}
+
+// TestBarVisibilityKeepsUpUnderRepeatedActivity is the case of a viewer moving
+// the pointer continuously: the bar must stay up, and must not be pushed again
+// on every move.
+func TestBarVisibilityKeepsUpUnderRepeatedActivity(t *testing.T) {
+	now := time.Unix(0, 0)
+	v := newBarVisibility()
+	v.now = func() time.Time { return now }
+	v.last = now
+	v.Update() // up, changed
+
+	pushes := 0
+	for i := 0; i < 20; i++ {
+		now = now.Add(hideAfter / 4)
+		v.Note()
+		if show, changed := v.Update(); !show {
+			t.Fatalf("iteration %d: the bar hid while the pointer was moving", i)
+		} else if changed {
+			pushes++
+		}
+	}
+	if pushes != 0 {
+		t.Errorf("continuous movement reported %d changes; the layer would be pushed that many times", pushes)
+	}
+}

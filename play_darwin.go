@@ -330,23 +330,6 @@ func Play(cfg Config) error {
 	// Content is the video; the controls are a layer above it. Events route
 	// top-down, so a click on a button reaches the button and everything else
 	// falls through to the video.
-	overlay = toolkit.NewOverlay(surface)
-	var barMu sync.Mutex
-	lastActivity := time.Now()
-	barUp := false
-
-	noteActivity = func() {
-		barMu.Lock()
-		lastActivity = time.Now()
-		up := barUp
-		barMu.Unlock()
-		if !up {
-			barMu.Lock()
-			barUp = true
-			barMu.Unlock()
-		}
-	}
-
 	var bar *controlBar
 	acts := barActions{TogglePause: togglePause}
 	if clock != nil {
@@ -365,19 +348,13 @@ func Play(cfg Config) error {
 	}
 	bar = newControlBar(acts)
 	bar.Layout(fbW, fbH, len(v.maps))
-	barLayer := &activityWidget{Widget: bar.Root(), seen: noteActivity}
 
-	// The bar is pushed and cleared rather than hidden, because a layer that is
-	// not there cannot swallow a click meant for the video.
-	showBar := func(show bool) {
-		if show {
-			if len(overlay.Layers) == 0 {
-				overlay.Push(barLayer)
-			}
-			return
-		}
-		overlay.Clear()
-	}
+	// One composition, shared with the tests that drive it. Activity only records
+	// WHEN something happened; Tick is the single place that decides whether the
+	// bar is up.
+	ctrl := newControlsOverlay(surface, bar.Root())
+	overlay = ctrl.Overlay
+	noteActivity = ctrl.Note
 
 	go func() {
 		t := time.NewTicker(200 * time.Millisecond)
@@ -387,13 +364,7 @@ func Play(cfg Config) error {
 			case <-stop:
 				return
 			case <-t.C:
-				barMu.Lock()
-				want := time.Since(lastActivity) < hideAfter
-				changed := want != barUp
-				barUp = want
-				barMu.Unlock()
-				if changed {
-					showBar(want)
+				if ctrl.Tick() {
 					repaint()
 				}
 			}
@@ -729,21 +700,4 @@ func firstFrame(src source, clock clocked) (*srcFrame, error) {
 	clock.Pause()
 	clock.SetVolume(1)
 	return nil, fmt.Errorf("no picture within %v; the item never became ready", firstFrameTimeout)
-}
-
-// activityWidget notices that the viewer is doing something and passes the event
-// on unchanged.
-//
-// It draws nothing and decides nothing: it exists because the controls hide
-// themselves after a few idle seconds, and while the pointer is OVER the bar the
-// events go to the bar rather than to the video underneath — so without this the
-// overlay would vanish from under the hand using it.
-type activityWidget struct {
-	toolkit.Widget
-	seen func()
-}
-
-func (a *activityWidget) OnEvent(ev toolkit.Event) {
-	a.seen()
-	a.Widget.OnEvent(ev)
 }
