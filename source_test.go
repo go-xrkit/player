@@ -67,3 +67,16 @@ func TestSourceInfoAndFrameAreValues(t *testing.T) {
 		t.Error("copying a SourceInfo shared state")
 	}
 }
+
+func TestContainerName(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"matroska", "matroska"},
+		{"mp4", "mp4"},
+		{"webm", "webm"},
+		{"", "demuxed"},
+	} {
+		if got := containerName(tc.in); got != tc.want {
+			t.Errorf("containerName(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

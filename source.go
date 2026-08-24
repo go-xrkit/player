@@ -87,6 +87,17 @@ func popEarliest(pending []*videotoolbox.Frame) (*videotoolbox.Frame, []*videoto
 	return f, append(pending[:best], pending[best+1:]...)
 }
 
+// containerName renders a demuxed format for the log, so a viewer can see WHICH
+// path opened the file. That matters most when an MP4 lands on the demuxed path
+// because AVFoundation refused it: without it, the log would say nothing about
+// why the file behaves differently from every other MP4.
+func containerName(format string) string {
+	if format == "" {
+		return "demuxed"
+	}
+	return format
+}
+
 // codecOf maps a demuxer's sample entry to a decoder codec.
 func codecOf(fourcc string) (videotoolbox.Codec, bool) {
 	switch fourcc {
