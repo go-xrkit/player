@@ -164,3 +164,56 @@ func (p *pauser) Wait(stop <-chan struct{}) {
 		}
 	}
 }
+
+// barVisibility decides whether the transport controls are up.
+//
+// It is a type of its own, with its own tests, because the first version of this
+// was three lines inlined in the player and it was WRONG in a way nothing would
+// have caught: noting activity set the "shown" flag directly, so the ticker that
+// actually pushes the overlay compared the flag to itself, concluded nothing had
+// changed, and never pushed anything. The bar appeared once at startup and never
+// again — and every part in isolation looked right.
+//
+// The rule it enforces: activity records only the TIME. Whether the bar is up is
+// decided in exactly one place.
+type barVisibility struct {
+	mu    sync.Mutex
+	last  time.Time
+	shown bool
+	// now is the clock, swappable so the timing can be tested without waiting.
+	now func() time.Time
+}
+
+// newBarVisibility starts with the controls up, so a viewer sees what the
+// keyboard can do before it hides itself.
+func newBarVisibility() *barVisibility {
+	v := &barVisibility{now: time.Now}
+	v.last = v.now()
+	return v
+}
+
+// Note records that the viewer did something.
+func (v *barVisibility) Note() {
+	v.mu.Lock()
+	v.last = v.now()
+	v.mu.Unlock()
+}
+
+// Update reports whether the bar should be up, and whether that has changed
+// since the last call. Only a change is worth acting on: pushing an already
+// pushed layer would stack it.
+func (v *barVisibility) Update() (show, changed bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	show = v.now().Sub(v.last) < hideAfter
+	changed = show != v.shown
+	v.shown = show
+	return show, changed
+}
+
+// Shown reports the last decision, without making a new one.
+func (v *barVisibility) Shown() bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.shown
+}
