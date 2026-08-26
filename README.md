@@ -2,9 +2,10 @@
 
 # go-xrkit/player
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/go-xrkit/player.svg)](https://pkg.go.dev/github.com/go-xrkit/player)
-[![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![CI](https://github.com/go-xrkit/player/actions/workflows/ci.yml/badge.svg)](https://github.com/go-xrkit/player/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/go-xrkit/player.svg)](https://pkg.go.dev/github.com/go-xrkit/player)
+[![coverage](https://img.shields.io/badge/coverage-100%25%20portable%20logic-brightgreen)](https://github.com/go-xrkit/player/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
 Plays immersive video on XR glasses: 360°, VR180 and 3D films, per eye, full
 screen on the glasses' own display.
