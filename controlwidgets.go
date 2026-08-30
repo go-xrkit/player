@@ -3,7 +3,7 @@ package player
 import (
 	"time"
 
-	"github.com/go-iconoir/iconoir"
+	"github.com/go-icons/iconoir"
 	"github.com/go-widgets/painter"
 	"github.com/go-widgets/toolkit"
 )
@@ -53,9 +53,9 @@ type controlBar struct {
 // button's current ink, so the glyph follows every hover, press and disabled
 // state without this knowing what those look like.
 func icon(name string) func(painter.Painter, toolkit.Rect, toolkit.RGBA) {
-	return func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
-		iconoir.Draw(p, painter.Rect{X: r.X, Y: r.Y, W: r.W, H: r.H}, name, painter.RGBA(ink))
-	}
+	// go-icons ships the pack as SVG source; toolkit.SVGIcon rasterises and
+	// caches it per (document, ink). Resolved once here rather than per draw.
+	return toolkit.SVGIcon(iconoir.Icon(name))
 }
 
 // The Iconoir names used, in the order the buttons appear. They are the standard
@@ -101,12 +101,12 @@ func newControlBar(a barActions) *controlBar {
 		btn := toolkit.NewButton("", on)
 		btn.Icon = icon(name)
 		btn.Flat = true
-		btn.Disabled = on == nil
+		btn.Disabled().Set(on == nil)
 		return btn
 	}
 	play := toolkit.NewButton("", a.TogglePause)
 	play.Flat = true
-	play.Disabled = a.TogglePause == nil
+	play.Disabled().Set(a.TogglePause == nil)
 	// One button, two glyphs: it shows what pressing it will DO, which is the
 	// convention, rather than what the player is currently doing.
 	play.Icon = func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
@@ -118,7 +118,7 @@ func newControlBar(a barActions) *controlBar {
 	}
 	mute := toolkit.NewButton("", a.ToggleMute)
 	mute.Flat = true
-	mute.Disabled = a.ToggleMute == nil
+	mute.Disabled().Set(a.ToggleMute == nil)
 	mute.Icon = func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
 		name := iconSound
 		if b.muted {
@@ -151,7 +151,7 @@ func newControlBar(a barActions) *controlBar {
 			a.SeekTo(f)
 		})
 	} else {
-		b.scrub.Disabled = true
+		b.scrub.Disabled().Set(true)
 	}
 
 	// Top row: the two times flank the slider, which takes what is left.
@@ -194,8 +194,8 @@ func (b *controlBar) SetMuted(muted bool) { b.muted = muted }
 // feel broken.
 func (b *controlBar) SetProgress(at, total time.Duration) {
 	b.duration = total
-	b.elapsed.Text = formatTime(at)
-	b.total.Text = formatTime(total)
+	b.elapsed.Text().Set(formatTime(at))
+	b.total.Text().Set(formatTime(total))
 	if b.seeking {
 		return
 	}
