@@ -9,13 +9,15 @@ require (
 	github.com/go-macos/avfoundation v0.2.0
 	github.com/go-macos/videotoolbox v0.1.0
 	github.com/go-widgets/painter v0.11.0
-	github.com/go-widgets/toolkit v0.291.0
+	github.com/go-widgets/toolkit v0.293.0
 	github.com/go-widgets/window v0.48.0
 	github.com/go-xrkit/xrkit v0.1.0
 )
 
 require (
 	github.com/Eyevinn/mp4ff v0.55.0 // indirect
+	github.com/ajroetker/go-highway v0.0.4 // indirect
+	github.com/ajroetker/go-jpeg2000 v0.0.2 // indirect
 	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/asticode/go-astikit v0.30.0 // indirect
 	github.com/asticode/go-astits v1.16.0 // indirect
@@ -24,7 +26,7 @@ require (
 	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/go-crdt/collab v0.33.0 // indirect
 	github.com/go-crdt/crdt v0.35.0 // indirect
-	github.com/go-gfx/gfx v0.11.0 // indirect
+	github.com/go-gfx/gfx v0.18.0 // indirect
 	github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 // indirect
 	github.com/go-macos/objc v0.2.0 // indirect
 	github.com/go-mswin/win32 v0.1.0 // indirect
@@ -38,6 +40,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0 // indirect
+	github.com/tannevaled/gobig2 v0.1.0 // indirect
 	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
@@ -45,4 +48,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
