@@ -3,33 +3,34 @@ module github.com/go-xrkit/player
 go 1.26.4
 
 require (
-	github.com/go-avkit/avkit v0.0.0-20260824183509-855ca19fa702
+	github.com/go-avkit/avkit v0.0.0-20260830124118-008ab6e5790a
 	github.com/go-icons/iconoir v0.2.0
-	github.com/go-macos/audiotoolbox v0.0.0-20260824184339-de45e077a03d
-	github.com/go-macos/avfoundation v0.2.0
-	github.com/go-macos/videotoolbox v0.1.0
-	github.com/go-widgets/painter v0.11.0
-	github.com/go-widgets/toolkit v0.293.0
-	github.com/go-widgets/window v0.48.0
-	github.com/go-xrkit/xrkit v0.1.0
+	github.com/go-macos/audiotoolbox v0.0.0-20260830145103-4745125eda47
+	github.com/go-macos/avfoundation v0.2.1
+	github.com/go-macos/videotoolbox v0.1.1
+	github.com/go-widgets/painter v0.12.0
+	github.com/go-widgets/toolkit v0.297.0
+	github.com/go-widgets/window v0.57.0
+	github.com/go-xrkit/xrkit v0.8.0
 )
 
 require (
-	github.com/Eyevinn/mp4ff v0.55.0 // indirect
+	github.com/Eyevinn/mp4ff v0.56.0 // indirect
 	github.com/ajroetker/go-highway v0.0.4 // indirect
 	github.com/ajroetker/go-jpeg2000 v0.0.2 // indirect
 	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/asticode/go-astikit v0.30.0 // indirect
 	github.com/asticode/go-astits v1.16.0 // indirect
-	github.com/at-wat/ebml-go v0.19.0 // indirect
+	github.com/at-wat/ebml-go v0.19.1 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/go-crdt/collab v0.33.0 // indirect
 	github.com/go-crdt/crdt v0.35.0 // indirect
-	github.com/go-gfx/gfx v0.18.0 // indirect
+	github.com/go-freedesktop/x11 v0.2.0 // indirect
+	github.com/go-gfx/gfx v0.19.0 // indirect
 	github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 // indirect
-	github.com/go-macos/objc v0.2.0 // indirect
-	github.com/go-mswin/win32 v0.1.0 // indirect
+	github.com/go-macos/objc v0.4.0 // indirect
+	github.com/go-mswin/win32 v0.3.0 // indirect
 	github.com/go-opentype/fonts v0.8.0 // indirect
 	github.com/go-opentype/opentype v0.6.0 // indirect
 	github.com/go-opentype/shape v0.5.0 // indirect
