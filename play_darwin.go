@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-images/depth"
 	"github.com/go-widgets/painter"
 	"github.com/go-widgets/toolkit"
 	"github.com/go-widgets/window"
@@ -143,7 +144,7 @@ func Play(cfg Config) error {
 		case geom.Format.Layout.Stereoscopic():
 			cfg.logf("convert   asked for, but this film is already %s", geom.Format.Layout)
 		default:
-			conv := newConverter(cfg.DepthModel, cfg.disparityOrDefault(), softenRadius, cfg.logf)
+			conv := newConverter(cfg.DepthModel, cfg.disparityOrDefault(), softenRadius, depth.Sigmoid(cfg.DepthCurve), cfg.logf)
 			cs := convertSource(src, conv)
 			defer cs.Close()
 			// The first frame was already pulled, to measure the stride before
@@ -162,6 +163,12 @@ func Play(cfg Config) error {
 			cfg.logf("convert   flat to 3D: %s", conv.describe())
 			cfg.logf("  eyes %d pixels apart at the nearest, depth softened by %d",
 				cfg.disparityOrDefault(), softenRadius)
+			if c := depth.Sigmoid(cfg.DepthCurve); c != nil {
+				d := depth.DisparityOf(c, depth.Options{MaxShift: cfg.disparityOrDefault()})
+				cfg.logf("  depth curve %.1f: the middle of the range gains %d pixel(s), the near end loses %d",
+					cfg.DepthCurve, d[160]-160*cfg.disparityOrDefault()/255/2,
+					(255*cfg.disparityOrDefault()/255/2-200*cfg.disparityOrDefault()/255/2)-(d[255]-d[200]))
+			}
 		}
 	}
 

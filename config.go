@@ -61,6 +61,18 @@ type Config struct {
 	// estimate made from cues in the picture itself, which needs nothing at
 	// all and is visibly not as good.
 	DepthModel string
+	// DepthCurve reshapes the depth before it becomes a sideways shift, as an
+	// S-curve of the given strength. Zero means none.
+	//
+	// It flattens both ends of the depth range and expands the middle, so the
+	// subject gains relief while the background and the foreground each settle
+	// into their own plane. It is NOT a comfort control: a near object gets
+	// slightly MORE disparity, not less.
+	//
+	// At the default disparity it barely matters -- twelve pixels each way is
+	// thirteen distinct shifts for the whole range, and quantisation swamps
+	// any reshaping of it. Raise Disparity before expecting to see this.
+	DepthCurve float64
 	// Disparity is how far apart the two eyes put the NEAREST thing, in pixels
 	// of the source. Zero uses 24.
 	//

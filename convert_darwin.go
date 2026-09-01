@@ -99,6 +99,10 @@ kernel void upsample(device const uchar *small [[buffer(0)]], device uchar *full
 
 // The two eyes, written straight into one side-by-side frame.
 //
+// The curve is a table of 256 entries, ALWAYS present -- the identity when the
+// caller asked for none. No branch, and no way for this side and the portable
+// one to disagree, because both index the same bytes.
+//
 // It GATHERS: each output pixel asks which source pixels could have reached it
 // and keeps the nearest. That is the same rule as painting far pixels first so
 // near ones land on top, without the global sort by depth -- and without it no
@@ -107,6 +111,7 @@ kernel void eyes(device const uchar4 *src [[buffer(0)]],
                  device const uchar *depth [[buffer(1)]],
                  device uchar4 *out [[buffer(2)]],
                  constant P &p [[buffer(3)]],
+                 device const uchar *curve [[buffer(4)]],
                  uint2 g [[thread_position_in_grid]]) {
     if (g.x >= p.w || g.y >= p.h) return;
     uint halfShift = p.maxShift / 2;
@@ -115,7 +120,7 @@ kernel void eyes(device const uchar4 *src [[buffer(0)]],
     int best = -1, bestD = -1;
     for (uint k = 0; k <= halfShift; k++) {
         if (k > g.x) break;
-        uint sx = g.x - k, d = depth[g.y * p.w + sx];
+        uint sx = g.x - k, d = curve[depth[g.y * p.w + sx]];
         if ((d * p.maxShift) / 255 / 2 == k && int(d) >= bestD) { bestD = int(d); best = int(sx); }
     }
     out[row + g.x] = best < 0 ? uchar4(0) : src[g.y * p.w + uint(best)];
@@ -124,7 +129,7 @@ kernel void eyes(device const uchar4 *src [[buffer(0)]],
     for (uint k = 0; k <= halfShift; k++) {
         uint sx = g.x + k;
         if (sx >= p.w) break;
-        uint d = depth[g.y * p.w + sx];
+        uint d = curve[depth[g.y * p.w + sx]];
         if ((d * p.maxShift) / 255 / 2 == k && int(d) >= bestD) { bestD = int(d); best = int(sx); }
     }
     out[row + p.w + g.x] = best < 0 ? uchar4(0) : src[g.y * p.w + uint(best)];
@@ -171,12 +176,13 @@ type gpuConverter struct {
 	upsample *metal.Pipeline
 	maxShift int
 	radius   int32
+	curve    []byte
 
-	w, h                            int
-	srcB, depthB, tmpB, fullB, outB *metal.Buffer
-	srcM, depthM, outM              []byte
-	small                           []byte
-	modelName                       string
+	w, h                                    int
+	srcB, depthB, tmpB, fullB, outB, curveB *metal.Buffer
+	srcM, depthM, outM                      []byte
+	small                                   []byte
+	modelName                               string
 }
 
 func (g *gpuConverter) describe() string {
@@ -185,7 +191,7 @@ func (g *gpuConverter) describe() string {
 }
 
 func (g *gpuConverter) close() {
-	for _, b := range []*metal.Buffer{g.srcB, g.depthB, g.tmpB, g.fullB, g.outB} {
+	for _, b := range []*metal.Buffer{g.srcB, g.depthB, g.tmpB, g.fullB, g.outB, g.curveB} {
 		b.Close()
 	}
 	g.eyes.Close()
@@ -200,7 +206,7 @@ func (g *gpuConverter) close() {
 
 // newGPUConverter opens everything the accelerated path needs, and returns an
 // error naming which piece was missing rather than falling back in silence.
-func newGPUConverter(modelPath string, maxShift, radius int) (*gpuConverter, error) {
+func newGPUConverter(modelPath string, maxShift, radius int, curve []byte) (*gpuConverter, error) {
 	compiled, err := compiledModel(modelPath)
 	if err != nil {
 		return nil, err
@@ -231,7 +237,7 @@ func newGPUConverter(modelPath string, maxShift, radius int) (*gpuConverter, err
 	}
 	g := &gpuConverter{
 		model: m, in: in[0], out: out[0], dev: dev, lib: lib,
-		maxShift: maxShift, radius: int32(radius), modelName: compiled,
+		maxShift: maxShift, radius: int32(radius), modelName: compiled, curve: curve,
 		small: make([]byte, in[0].Width*in[0].Height*4),
 	}
 	for _, p := range []struct {
@@ -276,7 +282,7 @@ func (g *gpuConverter) resize(w, h int) error {
 	if g.w == w && g.h == h {
 		return nil
 	}
-	for _, b := range []*metal.Buffer{g.srcB, g.depthB, g.tmpB, g.fullB, g.outB} {
+	for _, b := range []*metal.Buffer{g.srcB, g.depthB, g.tmpB, g.fullB, g.outB, g.curveB} {
 		b.Close()
 	}
 	var err error
@@ -296,8 +302,19 @@ func (g *gpuConverter) resize(w, h int) error {
 	g.tmpB, _ = alloc(g.in.Width * g.in.Height)
 	g.fullB, _ = alloc(w * h)
 	g.outB, g.outM = alloc(w * h * 4 * 2)
+	// The curve travels as a whole table, the identity when none was asked
+	// for, so the kernel never has to ask whether there is one.
+	var curveM []byte
+	g.curveB, curveM = alloc(256)
 	if err != nil {
 		return err
+	}
+	for i := range curveM {
+		if len(g.curve) == 256 {
+			curveM[i] = g.curve[i]
+		} else {
+			curveM[i] = byte(i)
+		}
 	}
 	g.w, g.h = w, h
 	return nil
@@ -365,6 +382,7 @@ func (g *gpuConverter) convert(dst []uint32, dstStride int, src []uint32, srcStr
 		e.Buffer(1, g.fullB)
 		e.Buffer(2, g.outB)
 		metal.Constant(e, 3, &p)
+		e.Buffer(4, g.curveB)
 		e.Dispatch(w, h)
 
 		e.Use(g.fill)
@@ -383,9 +401,9 @@ func (g *gpuConverter) convert(dst []uint32, dstStride int, src []uint32, srcStr
 
 // newConverter picks the best path this machine can actually run, and says
 // which one it picked and why.
-func newConverter(modelPath string, maxShift, radius int, logf func(string, ...any)) converter {
+func newConverter(modelPath string, maxShift, radius int, curve []byte, logf func(string, ...any)) converter {
 	if modelPath != "" {
-		g, err := newGPUConverter(modelPath, maxShift, radius)
+		g, err := newGPUConverter(modelPath, maxShift, radius, curve)
 		if err == nil {
 			return g
 		}
@@ -393,5 +411,5 @@ func newConverter(modelPath string, maxShift, radius int, logf func(string, ...a
 	} else {
 		logf("  no depth model given (-model); using the estimate from the picture")
 	}
-	return &cueConverter{maxShift: maxShift, radius: radius}
+	return &cueConverter{maxShift: maxShift, radius: radius, curve: curve}
 }
