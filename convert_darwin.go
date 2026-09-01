@@ -31,8 +31,30 @@ struct P { uint w, h, dw, dh, maxShift; };
 
 // The depth map is a different SIZE from the picture: a network has its own
 // input size and does not care what it was given.
+// The depth map is a different SIZE from the picture -- a network has its own
+// input size and does not care what it was given -- so it is INTERPOLATED.
+//
+// Taking the nearest map pixel manufactures a depth step every time the picture
+// crosses a map pixel boundary: 2099 of them across one 1080p frame where the
+// map itself holds 28, on a regular grid, answering to nothing in the picture.
+// They read as a staircase over every smooth surface.
+//
+// Integer arithmetic, matching go-images/depth exactly, because the two are
+// checked against each other BYTE FOR BYTE. In long, not int: the products
+// below reach 8.5e9 at 4K and would overflow 32 bits in silence.
 static inline uint depthAt(device const uchar *d, constant P &p, uint x, uint y) {
-    return d[min(y * p.dh / p.h, p.dh - 1) * p.dw + min(x * p.dw / p.w, p.dw - 1)];
+    int dw = int(p.dw), dh = int(p.dh), w = int(p.w), h = int(p.h);
+    int denx = 2 * w, px = (2 * int(x) + 1) * dw - w;
+    int ix = px / denx; if (px < 0 && px % denx != 0) ix--;
+    int tx = px - ix * denx;
+    int deny = 2 * h, py = (2 * int(y) + 1) * dh - h;
+    int iy = py / deny; if (py < 0 && py % deny != 0) iy--;
+    int ty = py - iy * deny;
+    int x0 = max(ix, 0), x1 = min(ix + 1, dw - 1);
+    int y0 = max(iy, 0), y1 = min(iy + 1, dh - 1);
+    long top = (long)d[y0 * dw + x0] * (denx - tx) + (long)d[y0 * dw + x1] * tx;
+    long bot = (long)d[y1 * dw + x0] * (denx - tx) + (long)d[y1 * dw + x1] * tx;
+    return uint((top * (deny - ty) + bot * ty + (long)denx * deny / 2) / ((long)denx * deny));
 }
 
 // Softening the depth step, separably. Not cosmetic: a step crossing the pixel
@@ -64,6 +86,17 @@ kernel void blurV(device const uchar *in [[buffer(0)]], device uchar *out [[buff
     out[g.y * p.dw + g.x] = uchar(sum / n);
 }
 
+// The map, interpolated to the picture's own size, ONCE.
+//
+// The synthesis below asks for a depth up to twenty-four times per pixel, and
+// paying for the interpolation at each ask cost seventy per cent of the frame.
+// Eight megabytes at 4K buys all of it back.
+kernel void upsample(device const uchar *small [[buffer(0)]], device uchar *full [[buffer(1)]],
+                     constant P &p [[buffer(2)]], uint2 g [[thread_position_in_grid]]) {
+    if (g.x >= p.w || g.y >= p.h) return;
+    full[g.y * p.w + g.x] = uchar(depthAt(small, p, g.x, g.y));
+}
+
 // The two eyes, written straight into one side-by-side frame.
 //
 // It GATHERS: each output pixel asks which source pixels could have reached it
@@ -82,7 +115,7 @@ kernel void eyes(device const uchar4 *src [[buffer(0)]],
     int best = -1, bestD = -1;
     for (uint k = 0; k <= halfShift; k++) {
         if (k > g.x) break;
-        uint sx = g.x - k, d = depthAt(depth, p, sx, g.y);
+        uint sx = g.x - k, d = depth[g.y * p.w + sx];
         if ((d * p.maxShift) / 255 / 2 == k && int(d) >= bestD) { bestD = int(d); best = int(sx); }
     }
     out[row + g.x] = best < 0 ? uchar4(0) : src[g.y * p.w + uint(best)];
@@ -91,7 +124,7 @@ kernel void eyes(device const uchar4 *src [[buffer(0)]],
     for (uint k = 0; k <= halfShift; k++) {
         uint sx = g.x + k;
         if (sx >= p.w) break;
-        uint d = depthAt(depth, p, sx, g.y);
+        uint d = depth[g.y * p.w + sx];
         if ((d * p.maxShift) / 255 / 2 == k && int(d) >= bestD) { bestD = int(d); best = int(sx); }
     }
     out[row + p.w + g.x] = best < 0 ? uchar4(0) : src[g.y * p.w + uint(best)];
@@ -135,14 +168,15 @@ type gpuConverter struct {
 	fill     *metal.Pipeline
 	blurH    *metal.Pipeline
 	blurV    *metal.Pipeline
+	upsample *metal.Pipeline
 	maxShift int
 	radius   int32
 
-	w, h                     int
-	srcB, depthB, tmpB, outB *metal.Buffer
-	srcM, depthM, outM       []byte
-	small                    []byte
-	modelName                string
+	w, h                            int
+	srcB, depthB, tmpB, fullB, outB *metal.Buffer
+	srcM, depthM, outM              []byte
+	small                           []byte
+	modelName                       string
 }
 
 func (g *gpuConverter) describe() string {
@@ -151,13 +185,14 @@ func (g *gpuConverter) describe() string {
 }
 
 func (g *gpuConverter) close() {
-	for _, b := range []*metal.Buffer{g.srcB, g.depthB, g.tmpB, g.outB} {
+	for _, b := range []*metal.Buffer{g.srcB, g.depthB, g.tmpB, g.fullB, g.outB} {
 		b.Close()
 	}
 	g.eyes.Close()
 	g.fill.Close()
 	g.blurH.Close()
 	g.blurV.Close()
+	g.upsample.Close()
 	g.lib.Close()
 	g.dev.Close()
 	g.model.Close()
@@ -202,7 +237,7 @@ func newGPUConverter(modelPath string, maxShift, radius int) (*gpuConverter, err
 	for _, p := range []struct {
 		name string
 		dst  **metal.Pipeline
-	}{{"eyes", &g.eyes}, {"fill", &g.fill}, {"blurH", &g.blurH}, {"blurV", &g.blurV}} {
+	}{{"eyes", &g.eyes}, {"fill", &g.fill}, {"blurH", &g.blurH}, {"blurV", &g.blurV}, {"upsample", &g.upsample}} {
 		pipe, err := lib.Pipeline(p.name)
 		if err != nil {
 			lib.Close()
@@ -241,7 +276,7 @@ func (g *gpuConverter) resize(w, h int) error {
 	if g.w == w && g.h == h {
 		return nil
 	}
-	for _, b := range []*metal.Buffer{g.srcB, g.depthB, g.tmpB, g.outB} {
+	for _, b := range []*metal.Buffer{g.srcB, g.depthB, g.tmpB, g.fullB, g.outB} {
 		b.Close()
 	}
 	var err error
@@ -259,6 +294,7 @@ func (g *gpuConverter) resize(w, h int) error {
 	g.srcB, g.srcM = alloc(w * h * 4)
 	g.depthB, g.depthM = alloc(g.in.Width * g.in.Height)
 	g.tmpB, _ = alloc(g.in.Width * g.in.Height)
+	g.fullB, _ = alloc(w * h)
 	g.outB, g.outM = alloc(w * h * 4 * 2)
 	if err != nil {
 		return err
@@ -318,9 +354,15 @@ func (g *gpuConverter) convert(dst []uint32, dstStride int, src []uint32, srcStr
 		e.Buffer(1, g.depthB)
 		e.Dispatch(g.in.Width, g.in.Height)
 
+		e.Use(g.upsample)
+		e.Buffer(0, g.depthB)
+		e.Buffer(1, g.fullB)
+		metal.Constant(e, 2, &p)
+		e.Dispatch(w, h)
+
 		e.Use(g.eyes)
 		e.Buffer(0, g.srcB)
-		e.Buffer(1, g.depthB)
+		e.Buffer(1, g.fullB)
 		e.Buffer(2, g.outB)
 		metal.Constant(e, 3, &p)
 		e.Dispatch(w, h)

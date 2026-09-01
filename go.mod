@@ -5,7 +5,7 @@ go 1.26.4
 require (
 	github.com/go-avkit/avkit v0.0.0-20260830124118-008ab6e5790a
 	github.com/go-icons/iconoir v0.2.0
-	github.com/go-images/depth v0.2.0
+	github.com/go-images/depth v0.3.0
 	github.com/go-macos/audiotoolbox v0.0.0-20260830145103-4745125eda47
 	github.com/go-macos/avfoundation v0.2.1
 	github.com/go-macos/coreml v0.1.0
