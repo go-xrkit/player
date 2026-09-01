@@ -43,6 +43,9 @@ type converter interface {
 type cueConverter struct {
 	maxShift int
 	radius   int
+	// The two eyes, kept between frames. At 4K a fresh pair is sixty-six
+	// megabytes, and a player has the same two every frame.
+	left, right *image.RGBA
 }
 
 func (c *cueConverter) describe() string {
@@ -63,12 +66,14 @@ func (c *cueConverter) convert(dst []uint32, dstStride int, src []uint32, srcStr
 		Stride: srcStride * 4,
 		Rect:   image.Rect(0, 0, w, h),
 	}
+	if c.left == nil || c.left.Bounds() != img.Bounds() {
+		c.left, c.right = image.NewRGBA(img.Bounds()), image.NewRGBA(img.Bounds())
+	}
 	m := depth.Soften(depth.Cues(img), c.radius)
-	left, right := depth.Views(img, m, depth.Options{MaxShift: c.maxShift})
-	if left == nil || right == nil {
+	if err := depth.ViewsInto(c.left, c.right, img, m, depth.Options{MaxShift: c.maxShift}); err != nil {
 		return errNothingToConvert
 	}
-	packSideBySide(dst, dstStride, left, right, w, h)
+	packSideBySide(dst, dstStride, c.left, c.right, w, h)
 	return nil
 }
 
