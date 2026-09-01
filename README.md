@@ -15,6 +15,7 @@ xrplay film.mp4                       # detect everything, find the glasses
 xrplay -proj 360 -layout sbs f.mp4    # override the detection
 xrplay -screen "Built-in" -mono f.mp4 # one eye on the laptop, to look at it
 xrplay -for 10s -snapshot out.png f   # stop after 10s, capture what was shown
+xrplay -3d -model Depth.mlpackage f   # turn an ordinary flat film into 3D
 ```
 
 `CGO_ENABLED=0`. It joins three things that know nothing about each other —
@@ -22,6 +23,38 @@ xrplay -for 10s -snapshot out.png f   # stop after 10s, capture what was shown
 decoding, [go-xrkit/xrkit](https://github.com/go-xrkit/xrkit) for the geometry,
 and [go-widgets/window](https://github.com/go-widgets/window) for a full-screen
 window on the right physical display.
+
+## Turning an ordinary flat film into 3D
+
+`-3d` estimates how far away everything is, frame by frame, and synthesises a
+second eye from it. It is ignored for a film that is already stereoscopic and
+on a display showing one eye -- in both cases there is nothing to convert to,
+and saying so beats doing expensive work that changes nothing.
+
+The whole of it happens BEFORE the renderer: a converter wraps the source and
+presents side-by-side frames, so the warp, the projection, the control bar and
+the snapshot path go on believing they were handed a 3D film.
+
+With `-model` naming a Core ML depth model, depth comes from a real network on
+the **Neural Engine** and the two views are synthesised by compute kernels on
+the **GPU**. Measured on an M4 Max, the whole chain -- decode, depth, two eyes
+-- runs at 36 frames a second for **3.6 ms of processor time per frame**, which
+is comfortably inside a 24 fps film's budget and leaves the machine alone. The
+Neural Engine is not the fastest of the three processors; the GPU is, by nearly
+half. It is asked for anyway, because the GPU here already has the eyes to
+synthesise and a desktop to draw.
+
+Without `-model`, depth is guessed from cues in the picture itself
+([go-images/depth](https://github.com/go-images/depth)) -- no model, no
+download, works anywhere, and visibly not as good.
+
+What it cannot do is invent what the camera never saw. Where a near object
+moves aside, what is behind it is guessed from the same row, so an edge is a
+little smeared. That is the honest cost of the effect.
+
+`-disparity` is small on purpose (24 pixels). A large one makes an impressive
+still and an unwatchable film, because the eyes must converge differently on
+every cut.
 
 ## How the stereo actually happens
 

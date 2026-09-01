@@ -69,6 +69,9 @@ func run() error {
 		for_   = flag.Duration("for", 0, "stop after this long (e.g. 10s); 0 plays to the end")
 		snap   = flag.String("snapshot", "", "write the composed framebuffer to this PNG")
 		snapAt = flag.Int("snapshot-after", 0, "how many frames to show before the snapshot")
+		to3d   = flag.Bool("3d", false, "turn an ordinary flat film into 3D as it plays")
+		model  = flag.String("model", "", "a Core ML depth model (.mlpackage or .mlmodelc) for -3d; without one, depth is guessed from the picture")
+		disp   = flag.Int("disparity", 0, "how far apart -3d puts the nearest thing, in pixels (default 24)")
 	)
 	flag.Parse()
 	if flag.NArg() != 1 {
@@ -85,6 +88,9 @@ func run() error {
 		For:           *for_,
 		Snapshot:      *snap,
 		SnapshotAfter: *snapAt,
+		Convert:       *to3d,
+		DepthModel:    *model,
+		Disparity:     *disp,
 	}
 	if !*quiet {
 		cfg.Log = func(s string) { fmt.Println(s) }
