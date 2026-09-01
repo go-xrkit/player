@@ -56,6 +56,17 @@ little smeared. That is the honest cost of the effect.
 still and an unwatchable film, because the eyes must converge differently on
 every cut.
 
+`-depth-curve` reshapes the depth before it becomes a shift, which is what
+VITURE's own player does at this point. It flattens both ends of the range and
+gives the middle their relief, so the subject stands out while the background
+and the foreground each settle into a plane. It is **not** a comfort control: a
+near object gets slightly more disparity, not less.
+
+At the default disparity it barely matters. Twelve pixels each way is thirteen
+distinct shifts for the whole depth range, and quantisation swamps any
+reshaping of it — raise `-disparity` first, or nothing will change. The log
+says what the curve buys, in pixels, before a frame is drawn.
+
 ## How the stereo actually happens
 
 **There is no SDK involved.** XR glasses expose their 3D mode *as a display

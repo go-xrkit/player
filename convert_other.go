@@ -6,9 +6,9 @@ package player
 // to ask it with, so the portable estimate is the only path. It is named in
 // the log for the same reason the accelerated one is: a converter that quietly
 // fell back would look identical from the outside except for being worse.
-func newConverter(modelPath string, maxShift, radius int, logf func(string, ...any)) converter {
+func newConverter(modelPath string, maxShift, radius int, curve []byte, logf func(string, ...any)) converter {
 	if modelPath != "" {
 		logf("  a depth model was given, but only macOS can run one here")
 	}
-	return &cueConverter{maxShift: maxShift, radius: radius}
+	return &cueConverter{maxShift: maxShift, radius: radius, curve: curve}
 }

@@ -72,6 +72,7 @@ func run() error {
 		to3d   = flag.Bool("3d", false, "turn an ordinary flat film into 3D as it plays")
 		model  = flag.String("model", "", "a Core ML depth model (.mlpackage or .mlmodelc) for -3d; without one, depth is guessed from the picture")
 		disp   = flag.Int("disparity", 0, "how far apart -3d puts the nearest thing, in pixels (default 24)")
+		curve  = flag.Float64("depth-curve", 0, "S-curve strength for -3d: flattens the background and foreground, gives the middle their relief (0 = none; try 4, and raise -disparity or it will be swamped)")
 	)
 	flag.Parse()
 	if flag.NArg() != 1 {
@@ -91,6 +92,7 @@ func run() error {
 		Convert:       *to3d,
 		DepthModel:    *model,
 		Disparity:     *disp,
+		DepthCurve:    *curve,
 	}
 	if !*quiet {
 		cfg.Log = func(s string) { fmt.Println(s) }
