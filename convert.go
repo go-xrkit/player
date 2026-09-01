@@ -1,11 +1,9 @@
 package player
 
 import (
-	"errors"
-	"image"
 	"sync"
 
-	"github.com/go-images/depth"
+	"github.com/go-xrkit/depth3d"
 )
 
 // Turning an ordinary flat film into something the glasses can show in 3D.
@@ -19,82 +17,13 @@ import (
 // moves aside, the pixels behind it are guessed from the same row -- so an
 // edge is a little smeared, and that is the honest cost of the effect.
 
-// errNothingToConvert is what a converter says when the frame it was given
-// cannot be turned into a pair -- an empty picture, or a depth map that does
-// not match it. It is not a user error and it is not recoverable per frame, so
-// playback stops rather than showing something flat and pretending.
-var errNothingToConvert = errors.New("player: nothing to convert in this frame")
-
-// converter turns one flat frame into a side-by-side pair.
-type converter interface {
-	// convert writes 2w by h pixels into dst, left eye then right.
-	convert(dst []uint32, dstStride int, src []uint32, srcStride, w, h int) error
-	// describe says which path is doing the work and why, for the log. A
-	// converter that quietly fell back to the cheap estimate would look
-	// identical from the outside except for being worse.
-	describe() string
-	close()
-}
-
-// cueConverter is the portable path: depth guessed from the picture itself,
-// and the two views synthesised on the processor. No model, no GPU, no
-// download -- it works on any machine, and it is visibly not as good as a real
-// depth network.
-type cueConverter struct {
-	maxShift int
-	radius   int
-	curve    []byte
-	// The two eyes, kept between frames. At 4K a fresh pair is sixty-six
-	// megabytes, and a player has the same two every frame.
-	left, right *image.RGBA
-}
-
-func (c *cueConverter) describe() string {
-	return "depth from cues in the picture, views on the processor"
-}
-
-func (c *cueConverter) close() {}
-
-func (c *cueConverter) convert(dst []uint32, dstStride int, src []uint32, srcStride, w, h int) error {
-	// The decoder's frames are BGRA and image.RGBA reads them as RGBA, so red
-	// and blue are transposed for the luminance term. It is left that way on
-	// purpose: correcting it costs a copy of every frame, and what it changes
-	// is the WEIGHTS of a greyscale that only has to say which parts of the
-	// picture are bright. The pixels themselves are moved whole, so nothing
-	// that reaches the eye is discoloured.
-	img := &image.RGBA{
-		Pix:    asBytes(src)[:srcStride*h*4],
-		Stride: srcStride * 4,
-		Rect:   image.Rect(0, 0, w, h),
-	}
-	if c.left == nil || c.left.Bounds() != img.Bounds() {
-		c.left, c.right = image.NewRGBA(img.Bounds()), image.NewRGBA(img.Bounds())
-	}
-	m := depth.Soften(depth.Cues(img), c.radius)
-	if err := depth.ViewsInto(c.left, c.right, img, m, depth.Options{MaxShift: c.maxShift, Curve: c.curve}); err != nil {
-		return errNothingToConvert
-	}
-	packSideBySide(dst, dstStride, c.left, c.right, w, h)
-	return nil
-}
-
-// packSideBySide lays the two eyes out in one frame, left then right.
-func packSideBySide(dst []uint32, dstStride int, left, right *image.RGBA, w, h int) {
-	lw, rw := asWords(left.Pix), asWords(right.Pix)
-	ls, rs := left.Stride/4, right.Stride/4
-	for y := 0; y < h; y++ {
-		copy(dst[y*dstStride:y*dstStride+w], lw[y*ls:y*ls+w])
-		copy(dst[y*dstStride+w:y*dstStride+2*w], rw[y*rs:y*rs+w])
-	}
-}
-
 // convertedSource presents a flat source as a side-by-side one.
 //
 // It does NOT close the source it wraps: the caller opened that and is already
 // closing it, and a second Close on a decoder is not a harmless thing.
 type convertedSource struct {
 	inner  source
-	conv   converter
+	conv   depth3d.Converter
 	info   SourceInfo
 	stride int
 
@@ -102,7 +31,7 @@ type convertedSource struct {
 	free [][]uint32
 }
 
-func convertSource(inner source, conv converter) *convertedSource {
+func convertSource(inner source, conv depth3d.Converter) *convertedSource {
 	info := inner.Info()
 	c := &convertedSource{inner: inner, conv: conv, info: info, stride: info.Width * 2}
 	c.info.Width = info.Width * 2
@@ -113,7 +42,7 @@ func (c *convertedSource) Info() SourceInfo { return c.info }
 
 // Close releases the converter. The wrapped source is the caller's.
 func (c *convertedSource) Close() error {
-	c.conv.close()
+	c.conv.Close()
 	return nil
 }
 
@@ -132,7 +61,10 @@ func (c *convertedSource) Next() (*srcFrame, error) {
 // the sampling tables could be built -- goes through exactly the same path.
 func (c *convertedSource) frame(f *srcFrame) (*srcFrame, error) {
 	buf := c.take(c.stride * f.Height)
-	if err := c.conv.convert(buf, c.stride, f.Pix, f.StrideWords, f.Width, f.Height); err != nil {
+	// The two eyes are the two halves of one frame, addressed by its own
+	// stride -- which is exactly the shape depth3d.Convert takes, so nothing
+	// is copied to put them side by side.
+	if err := c.conv.Convert(buf, buf[f.Width:], c.stride, f.Pix, f.StrideWords, f.Width, f.Height); err != nil {
 		c.give(buf)
 		return nil, err
 	}
