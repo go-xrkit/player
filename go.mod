@@ -5,8 +5,11 @@ go 1.26.4
 require (
 	github.com/go-avkit/avkit v0.0.0-20260830124118-008ab6e5790a
 	github.com/go-icons/iconoir v0.2.0
+	github.com/go-images/depth v0.1.0
 	github.com/go-macos/audiotoolbox v0.0.0-20260830145103-4745125eda47
 	github.com/go-macos/avfoundation v0.2.1
+	github.com/go-macos/coreml v0.1.0
+	github.com/go-macos/metal v0.1.0
 	github.com/go-macos/videotoolbox v0.1.1
 	github.com/go-widgets/painter v0.12.0
 	github.com/go-widgets/toolkit v0.297.0
@@ -29,7 +32,7 @@ require (
 	github.com/go-freedesktop/x11 v0.2.0 // indirect
 	github.com/go-gfx/gfx v0.19.0 // indirect
 	github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 // indirect
-	github.com/go-macos/objc v0.4.0 // indirect
+	github.com/go-macos/objc v0.9.1 // indirect
 	github.com/go-mswin/win32 v0.3.0 // indirect
 	github.com/go-opentype/fonts v0.8.0 // indirect
 	github.com/go-opentype/opentype v0.6.0 // indirect

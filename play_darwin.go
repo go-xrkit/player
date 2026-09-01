@@ -11,7 +11,6 @@ import (
 	"os"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/go-widgets/painter"
 	"github.com/go-widgets/toolkit"
@@ -25,55 +24,6 @@ import (
 // black is opaque black as a little-endian RGBA word: the bytes in memory are
 // R=0, G=0, B=0, A=255. It fills whatever the content does not cover.
 const black uint32 = 0xff000000
-
-// Config parametrises [Play].
-type Config struct {
-	// Path is the video file.
-	Path string
-	// Screen names the display to play on, matched case-insensitively against
-	// the attached displays. Empty picks automatically — recognised glasses
-	// first. See [ChooseDisplay].
-	Screen string
-	// Geometry overrides what the content is. Nil detects it from the file name
-	// and frame shape; see [Detect].
-	Geometry *Geometry
-	// FOVyDeg is the vertical field of view of each eye's view, in degrees.
-	// Zero uses 90, which is about what these glasses present.
-	FOVyDeg float64
-	// Loop restarts at the end instead of stopping.
-	Loop bool
-	// Mono forces a single-eye view even on a display that looks stereoscopic.
-	// Useful for looking at the result on an ordinary monitor.
-	Mono bool
-	// Log, when set, receives one line of progress per notable event.
-	Log func(string)
-	// For, when positive, stops playback after this long. A full-screen window
-	// with no chrome is awkward to end from the outside, and an automated check
-	// cannot press a key at all.
-	For time.Duration
-	// Snapshot, when set, names a PNG to write once Frames have been shown. It
-	// captures the composed framebuffer -- the exact pixels sent to the glasses --
-	// which is the one form of visual proof that needs no screen-recording
-	// consent.
-	Snapshot string
-	// SnapshotAfter is how many frames to show before taking the snapshot.
-	// Zero means the first frame.
-	SnapshotAfter int
-}
-
-// fovOrDefault resolves the requested field of view.
-func (c Config) fovOrDefault() float64 {
-	if c.FOVyDeg <= 0 {
-		return 90
-	}
-	return c.FOVyDeg
-}
-
-func (c Config) logf(format string, args ...any) {
-	if c.Log != nil {
-		c.Log(fmt.Sprintf(format, args...))
-	}
-}
 
 // Play opens the file, puts a full-screen window on the chosen display, and
 // plays until the file ends or the window closes.
@@ -181,6 +131,39 @@ func Play(cfg Config) error {
 	}
 	cfg.logf("content   %s", geom)
 	cfg.logf("  because: %s", geom.Why)
+
+	// The conversion happens entirely HERE, between the source and the view:
+	// a flat film is wrapped in something that presents side-by-side frames,
+	// and everything downstream goes on believing it was handed a 3D film.
+	play := src
+	if cfg.Convert {
+		switch {
+		case !stereoscopic:
+			cfg.logf("convert   asked for, but this display shows one eye; there is nothing to convert to")
+		case geom.Format.Layout.Stereoscopic():
+			cfg.logf("convert   asked for, but this film is already %s", geom.Format.Layout)
+		default:
+			conv := newConverter(cfg.DepthModel, cfg.disparityOrDefault(), softenRadius, cfg.logf)
+			cs := convertSource(src, conv)
+			defer cs.Close()
+			// The first frame was already pulled, to measure the stride before
+			// the sampling tables could be built. It goes through exactly the
+			// same conversion, or the tables would be built for the wrong shape.
+			pair, err := cs.frame(first)
+			if err != nil {
+				return fmt.Errorf("player: cannot convert %s to 3D: %w", cfg.Path, err)
+			}
+			first.Release()
+			first, play = pair, cs
+			info = cs.Info()
+			strideWords = first.StrideWords
+			geom.Format.Layout = stereo.SideBySide
+			geom.Why = "a flat film converted, " + conv.describe()
+			cfg.logf("convert   flat to 3D: %s", conv.describe())
+			cfg.logf("  eyes %d pixels apart at the nearest, depth softened by %d",
+				cfg.disparityOrDefault(), softenRadius)
+		}
+	}
 
 	v := newView(fbW, fbH, stereoscopic, geom, info, strideWords, cfg.fovOrDefault())
 	cfg.logf("view      %d eye(s) of %dx%d, %.0f deg vertical, %.1f%% of the view covered",
@@ -408,7 +391,7 @@ func Play(cfg Config) error {
 		}()
 	} else {
 		go func() {
-			v.decode(src, first, cfg, stop, repaint, pause, bar, info.Duration, overlay, theme)
+			v.decode(play, first, cfg, stop, repaint, pause, bar, info.Duration, overlay, theme)
 			// Decoding is what the window is for, so when it ends the window should
 			// go too -- otherwise a finished file leaves a black rectangle over the
 			// display with no way out but a keypress.
@@ -620,23 +603,6 @@ func meanLate(total time.Duration, n int) time.Duration {
 		return 0
 	}
 	return total / time.Duration(n)
-}
-
-// asWords views a byte slice as 32-bit words. The decoder's buffers are at least
-// 16-byte aligned, so the alignment a uint32 needs is satisfied.
-func asWords(b []byte) []uint32 {
-	if len(b) < 4 {
-		return nil
-	}
-	return unsafe.Slice((*uint32)(unsafe.Pointer(&b[0])), len(b)/4)
-}
-
-// asBytes is the reverse, for handing a composed frame to the toolkit.
-func asBytes(w []uint32) []byte {
-	if len(w) == 0 {
-		return nil
-	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(&w[0])), len(w)*4)
 }
 
 // composeInto warps a frame into dst, one eye at a time.
