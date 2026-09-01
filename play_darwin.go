@@ -16,6 +16,7 @@ import (
 	"github.com/go-widgets/painter"
 	"github.com/go-widgets/toolkit"
 	"github.com/go-widgets/window"
+	"github.com/go-xrkit/depth3d"
 	"github.com/go-xrkit/xrkit/pose"
 	"github.com/go-xrkit/xrkit/projection"
 	"github.com/go-xrkit/xrkit/stereo"
@@ -144,7 +145,16 @@ func Play(cfg Config) error {
 		case geom.Format.Layout.Stereoscopic():
 			cfg.logf("convert   asked for, but this film is already %s", geom.Format.Layout)
 		default:
-			conv := newConverter(cfg.DepthModel, cfg.disparityOrDefault(), softenRadius, depth.Sigmoid(cfg.DepthCurve), cfg.logf)
+			conv, err := depth3d.New(depth3d.Options{
+				Model:    cfg.DepthModel,
+				MaxShift: cfg.disparityOrDefault(),
+				Soften:   softenRadius,
+				Curve:    cfg.DepthCurve,
+				Log:      func(s string) { cfg.logf("  %s", s) },
+			})
+			if err != nil {
+				return fmt.Errorf("player: cannot convert %s to 3D: %w", cfg.Path, err)
+			}
 			cs := convertSource(src, conv)
 			defer cs.Close()
 			// The first frame was already pulled, to measure the stride before
@@ -159,8 +169,8 @@ func Play(cfg Config) error {
 			info = cs.Info()
 			strideWords = first.StrideWords
 			geom.Format.Layout = stereo.SideBySide
-			geom.Why = "a flat film converted, " + conv.describe()
-			cfg.logf("convert   flat to 3D: %s", conv.describe())
+			geom.Why = "a flat film converted, " + conv.Describe()
+			cfg.logf("convert   flat to 3D: %s", conv.Describe())
 			cfg.logf("  eyes %d pixels apart at the nearest, depth softened by %d",
 				cfg.disparityOrDefault(), softenRadius)
 			if c := depth.Sigmoid(cfg.DepthCurve); c != nil {

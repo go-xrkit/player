@@ -5,6 +5,8 @@ import (
 	"io"
 	"testing"
 	"time"
+
+	"github.com/go-xrkit/depth3d"
 )
 
 // fakeSource yields a fixed number of frames whose every pixel says which
@@ -14,6 +16,10 @@ type fakeSource struct {
 	given           int
 	released        int
 	closed          bool
+	// opaque makes the frames look like a decoder's. The default does not,
+	// because the tests that read exact pixel values are easier to follow
+	// without an alpha byte in every expectation.
+	opaque bool
 }
 
 func (f *fakeSource) Info() SourceInfo {
@@ -30,7 +36,11 @@ func (f *fakeSource) Next() (*srcFrame, error) {
 	pix := make([]uint32, f.stride*f.h)
 	for y := 0; y < f.h; y++ {
 		for x := 0; x < f.w; x++ {
-			pix[y*f.stride+x] = uint32(f.given)<<16 | uint32(x)
+			v := uint32(f.given)<<16 | uint32(x)
+			if f.opaque {
+				v |= 0xFF000000
+			}
+			pix[y*f.stride+x] = v
 		}
 	}
 	return &srcFrame{
@@ -49,18 +59,18 @@ type markerConverter struct {
 	fail   bool
 }
 
-func (m *markerConverter) describe() string { return "a converter for the test" }
-func (m *markerConverter) close()           { m.closed = true }
+func (m *markerConverter) Describe() string { return "a converter for the test" }
+func (m *markerConverter) Close()           { m.closed = true }
 
-func (m *markerConverter) convert(dst []uint32, dstStride int, src []uint32, srcStride, w, h int) error {
+func (m *markerConverter) Convert(left, right []uint32, stride int, src []uint32, srcStride, w, h int) error {
 	m.calls++
 	if m.fail {
-		return errNothingToConvert
+		return depth3d.ErrNothingToConvert
 	}
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			dst[y*dstStride+x] = 0x1000000 | src[y*srcStride+x]
-			dst[y*dstStride+w+x] = 0x2000000 | src[y*srcStride+x]
+			left[y*stride+x] = 0x1000000 | src[y*srcStride+x]
+			right[y*stride+x] = 0x2000000 | src[y*srcStride+x]
 		}
 	}
 	return nil
@@ -155,7 +165,7 @@ func TestAConvertedSourceReportsTheEndAndItsFailures(t *testing.T) {
 	bad := &fakeSource{w: 8, h: 2, stride: 8, n: 1}
 	failing := &markerConverter{fail: true}
 	cf := convertSource(bad, failing)
-	if _, err := cf.Next(); !errors.Is(err, errNothingToConvert) {
+	if _, err := cf.Next(); !errors.Is(err, depth3d.ErrNothingToConvert) {
 		t.Fatalf("a converter that failed gave %v", err)
 	}
 	if bad.released != 1 {
@@ -180,141 +190,33 @@ func TestClosingAConvertedSourceClosesTheConverterAndNotTheSource(t *testing.T) 
 	}
 }
 
-func TestTheCueConverterFillsBothEyesCompletely(t *testing.T) {
-	// The image algorithm is tested where it lives, in go-images/depth. What
-	// matters here is that it is wired up the right way round: both halves
-	// written, every pixel opaque, and the eyes not identical.
-	const w, h = 64, 32
-	stride := w + 3 // a padded row, as a real decoder produces
-	src := make([]uint32, stride*h)
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			// Detail at the bottom and flat sky at the top, so the cues have
-			// something to disagree about.
-			v := uint32(0xFF000000)
-			if y > h/2 && x%3 == 0 {
-				v |= 0x00FFFFFF
-			}
-			src[y*stride+x] = v
-		}
-	}
-	dst := make([]uint32, 2*w*h)
-	c := &cueConverter{maxShift: 24, radius: 2}
-	if err := c.convert(dst, 2*w, src, stride, w, h); err != nil {
+func TestARealConverterFitsTheFramesThisSourceHandsIt(t *testing.T) {
+	// The plumbing tests above use a stand-in converter, which accepts
+	// anything. The real one checks the sizes it is given -- and the right eye
+	// is a SUB-SLICE of the frame, so its length is exactly one eye short of
+	// the buffer. An off-by-one there is refused, silently, on every frame.
+	// Opaque, unlike the stand-in source above: a real decoder never hands over
+	// a transparent pixel, and the synthesis carries alpha through untouched.
+	src := &fakeSource{w: 32, h: 8, stride: 40, n: 2, opaque: true}
+	conv, err := depth3d.New(depth3d.Options{MaxShift: 12})
+	if err != nil {
 		t.Fatal(err)
 	}
-	same := 0
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			l, r := dst[y*2*w+x], dst[y*2*w+w+x]
-			if l>>24 == 0 || r>>24 == 0 {
-				t.Fatalf("a transparent pixel survived at %d,%d", x, y)
-			}
-			if l == r {
-				same++
-			}
-		}
-	}
-	if same == w*h {
-		t.Fatal("the two eyes are identical; nothing was converted")
-	}
-}
+	c := convertSource(src, conv)
+	defer c.Close()
 
-func TestTheCueConverterRefusesAFrameWithNoPicture(t *testing.T) {
-	c := &cueConverter{maxShift: 24, radius: 2}
-	if err := c.convert(make([]uint32, 4), 2, make([]uint32, 4), 2, 0, 0); !errors.Is(err, errNothingToConvert) {
-		t.Fatalf("a picture of nothing gave %v", err)
+	f, err := c.Next()
+	if err != nil {
+		t.Fatalf("a real converter refused the frames this source produces: %v", err)
 	}
-	if c.describe() == "" {
-		t.Error("the converter does not say what it is")
+	defer f.Release()
+	if f.Width != 64 || f.StrideWords != 64 {
+		t.Fatalf("frame is %d wide, stride %d", f.Width, f.StrideWords)
 	}
-	c.close()
-}
-
-// textured builds a picture in which every COLUMN is distinct, padded like a
-// decoder's frame.
-//
-// Distinct on purpose: a repeating pattern makes a shift land back on itself,
-// so a picture that moved a long way scores as having moved less than one that
-// barely moved. The first version of this test used one and failed for that
-// reason rather than for a fault in the code.
-func textured(w, h, stride int) []uint32 {
-	src := make([]uint32, stride*h)
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			c := uint32(x * 2 % 256)
-			src[y*stride+x] = 0xFF000000 | c<<16 | c<<8 | c
-		}
-	}
-	return src
-}
-
-// moved counts how far the synthesis actually moved the picture: the pixels of
-// one eye that no longer match the source underneath them.
-func moved(dst []uint32, dstStride int, src []uint32, srcStride, w, h int) int {
-	n := 0
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			if dst[y*dstStride+x] != src[y*srcStride+x] {
-				n++
-			}
-		}
-	}
-	return n
-}
-
-func TestABiggerDisparityMovesThingsFurther(t *testing.T) {
-	// The absolute amount depends on the depth map and is not worth asserting.
-	// That MORE disparity moves MORE is the property that says the number
-	// reaches the synthesis at all -- and it is the one that failed silently
-	// when a snapshot at two settings came out byte for byte identical,
-	// because the test frame was nearly black and every depth was the same.
-	const w, h = 96, 48
-	stride := w + 5
-	src := textured(w, h, stride)
-
-	count := func(maxShift int) int {
-		dst := make([]uint32, 2*w*h)
-		c := &cueConverter{maxShift: maxShift, radius: 2}
-		if err := c.convert(dst, 2*w, src, stride, w, h); err != nil {
-			t.Fatal(err)
-		}
-		return moved(dst, 2*w, src, stride, w, h)
-	}
-	small, large := count(8), count(48)
-	if small == 0 {
-		t.Fatal("nothing moved at all")
-	}
-	if large <= small {
-		t.Fatalf("a disparity of 48 moved %d pixels, no more than 8 did (%d)", large, small)
-	}
-	if none := count(0); none != count(24) {
-		// Zero means "use the default", not "do not move" -- Options treats it
-		// that way and so must this, or a caller who leaves it unset gets a
-		// flat picture and no explanation.
-		t.Error("a disparity of zero did not fall back to the default")
-	}
-}
-
-func TestAPictureWithNothingInItComesOutFlatRatherThanWrong(t *testing.T) {
-	// A frame with no structure -- a fade to black, which is how a film starts
-	// -- gives a depth map with no range at all. There is nothing to move, and
-	// the right answer is two identical eyes rather than a guess.
-	const w, h = 64, 32
-	stride := w + 2
-	src := make([]uint32, stride*h)
-	for i := range src {
-		src[i] = 0xFF000000
-	}
-	dst := make([]uint32, 2*w*h)
-	c := &cueConverter{maxShift: 24, radius: 2}
-	if err := c.convert(dst, 2*w, src, stride, w, h); err != nil {
-		t.Fatal(err)
-	}
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			if dst[y*2*w+x]>>24 == 0 || dst[y*2*w+w+x]>>24 == 0 {
-				t.Fatalf("a transparent pixel at %d,%d", x, y)
+	for y := 0; y < f.Height; y++ {
+		for x := 0; x < f.Width; x++ {
+			if f.Pix[y*f.StrideWords+x]>>24 == 0 {
+				t.Fatalf("a transparent pixel at %d,%d; an eye was not written", x, y)
 			}
 		}
 	}
