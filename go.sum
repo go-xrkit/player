@@ -36,6 +36,8 @@ github.com/go-images/depth v0.1.0 h1:PF7+kUGxh+wFAkbWbE+3sE6jQxW504qYiDocV6H/tdg
 github.com/go-images/depth v0.1.0/go.mod h1:3bnNLvc5kQ9q2Ep6jUhciMXP8gXPbjtMmOLefsCWw8M=
 github.com/go-images/depth v0.2.0 h1:HvxW/cJDVC4s7zYrlfOiKSkENJqMnf/+gsmZFDWSwEc=
 github.com/go-images/depth v0.2.0/go.mod h1:3bnNLvc5kQ9q2Ep6jUhciMXP8gXPbjtMmOLefsCWw8M=
+github.com/go-images/depth v0.3.0 h1:Y8lGXo1RNMrJPjS8kYJRCEuX7KgMXPZvhbzFq7W7emU=
+github.com/go-images/depth v0.3.0/go.mod h1:3bnNLvc5kQ9q2Ep6jUhciMXP8gXPbjtMmOLefsCWw8M=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 h1:nU+MGeyJzidGvCtx+HLZgHKG9GpUUomkQvB5nXLRWoc=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734/go.mod h1:ObuOBKDEidGX0LqLKY/5nqj7JVN/hsCzHMAJd0TNc0k=
 github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=

@@ -29,7 +29,7 @@ func TestTheKernelsCompileAndEveryOneOfThemIsThere(t *testing.T) {
 	}
 	defer lib.Close()
 
-	for _, name := range []string{"eyes", "fill", "blurH", "blurV"} {
+	for _, name := range []string{"eyes", "fill", "blurH", "blurV", "upsample"} {
 		pipe, err := lib.Pipeline(name)
 		if err != nil {
 			t.Errorf("kernel %s: %v", name, err)
