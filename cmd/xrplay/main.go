@@ -62,7 +62,8 @@ func run() error {
 		proj   = flag.String("proj", "", "override the source geometry: flat, 360, 180, fisheye")
 		layout = flag.String("layout", "", "override the eye packing: mono, sbs, ou")
 		swap   = flag.Bool("swap", false, "the eye images are the other way round")
-		fov    = flag.Float64("fov", 0, "vertical field of view in degrees (default 90)")
+		fov    = flag.Float64("fov", 0, "vertical field of view in degrees (default: the field the attached model publishes)")
+		audio  = flag.String("audio", "", "audio output to play on, by name or unique id (default: the glasses' own output, else the system default)")
 		mono   = flag.Bool("mono", false, "render one eye even on a side-by-side display")
 		loop   = flag.Bool("loop", false, "restart at the end")
 		quiet  = flag.Bool("quiet", false, "print nothing but errors")
@@ -81,6 +82,7 @@ func run() error {
 	}
 
 	cfg := player.Config{
+		AudioDevice:   *audio,
 		Path:          flag.Arg(0),
 		Screen:        *screen,
 		FOVyDeg:       *fov,
