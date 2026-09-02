@@ -23,8 +23,15 @@ type Config struct {
 	// Geometry overrides what the content is. Nil detects it from the file name
 	// and frame shape; see [Detect].
 	Geometry *Geometry
-	// FOVyDeg is the vertical field of view of each eye's view, in degrees.
-	// Zero uses 90, which is about what these glasses present.
+	// FOVyDeg overrides the vertical field of view of each eye's view, in
+	// degrees. Zero -- the usual case -- takes the field the IDENTIFIED model
+	// publishes, per pair of glasses rather than per brand, and says so.
+	//
+	// It does not change how large flat material appears: the virtual screen
+	// is sized to fill the view, so the picture covers the same pixels
+	// whatever the field is. What it changes is the angle the player reports,
+	// and the framing of panoramic material, which a field of view really
+	// does frame.
 	FOVyDeg float64
 	// Loop restarts at the end instead of stopping.
 	Loop bool
@@ -93,14 +100,6 @@ func (c Config) disparityOrDefault() int {
 		return 24
 	}
 	return c.Disparity
-}
-
-// fovOrDefault resolves the requested field of view.
-func (c Config) fovOrDefault() float64 {
-	if c.FOVyDeg <= 0 {
-		return 90
-	}
-	return c.FOVyDeg
 }
 
 func (c Config) logf(format string, args ...any) {
