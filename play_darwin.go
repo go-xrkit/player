@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-images/depth"
+	"github.com/go-macos/coreaudio"
 	"github.com/go-widgets/painter"
 	"github.com/go-widgets/toolkit"
 	"github.com/go-widgets/window"
@@ -110,7 +111,22 @@ func Play(cfg Config) error {
 	// source that has already produced one, and that first frame is kept: opening
 	// the file again to measure it would mean reading a fifteen-gigabyte
 	// recording twice.
-	src, clock, first, err := openPlaying(cfg.Path, cfg.logf)
+	// Where the sound goes. Glasses publish their own audio device, and with
+	// nothing named the system plays to its default output -- the Mac's
+	// speakers -- while the picture is in the glasses. Nothing reports that.
+	audioUID := ""
+	if devs, err := coreaudio.Devices(); err != nil {
+		cfg.logf("sound     cannot list the audio devices (%v), so the system chooses", err)
+	} else if d, ok := pickAudio(devs, chosen.Name, cfg.AudioDevice); ok {
+		audioUID = d.UID
+		cfg.logf("sound     %v", d)
+	} else if cfg.AudioDevice != "" {
+		cfg.logf("sound     no output device matches %q, so the system chooses", cfg.AudioDevice)
+	} else if def, err := coreaudio.DefaultOutput(); err == nil {
+		cfg.logf("sound     %q has no output of its own, so the system default %q gets it", chosen.Name, def.Name)
+	}
+
+	src, clock, first, err := openPlaying(cfg.Path, audioUID, cfg.logf)
 	if err != nil {
 		return fmt.Errorf("player: cannot play %s: %w", cfg.Path, err)
 	}
@@ -310,12 +326,16 @@ func Play(cfg Config) error {
 	// noteActivity is assigned once the overlay exists; until then a key press
 	// simply does its job without waking a bar that is not built yet.
 	noteActivity := func() {}
+	// notePointer is likewise assigned once there is a layer to move.
+	notePointer := func(int, int) {}
 
 	surface.OnInput = func(ev toolkit.Event) {
 		switch ev.Kind {
 		case toolkit.EventMouseMove:
 			// Moving the pointer is what brings the controls up, exactly as every
-			// other player does it.
+			// other player does it -- and it is also the only way this program
+			// learns where the pointer IS, which is what lets it draw one.
+			notePointer(ev.X, ev.Y)
 			noteActivity()
 			return
 		case toolkit.EventKeyDown:
@@ -384,9 +404,12 @@ func Play(cfg Config) error {
 	// One composition, shared with the tests that drive it. Activity only records
 	// WHEN something happened; Tick is the single place that decides whether the
 	// bar is up.
-	ctrl := newControlsOverlay(surface, bar.Root())
+	pointer := newPointerLayer()
+	pointer.Layout(fbW, fbH, len(v.maps))
+	ctrl := newControlsOverlay(surface, bar.Root(), pointer)
 	overlay = ctrl.Overlay
 	noteActivity = ctrl.Note
+	notePointer = pointer.Moved
 
 	go func() {
 		t := time.NewTicker(200 * time.Millisecond)

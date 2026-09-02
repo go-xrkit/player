@@ -7,7 +7,8 @@ require (
 	github.com/go-icons/iconoir v0.2.0
 	github.com/go-images/depth v0.4.0
 	github.com/go-macos/audiotoolbox v0.0.0-20260830145103-4745125eda47
-	github.com/go-macos/avfoundation v0.2.1
+	github.com/go-macos/avfoundation v0.9.0
+	github.com/go-macos/coreaudio v0.1.0
 	github.com/go-macos/iokit v0.2.0
 	github.com/go-macos/videotoolbox v0.1.1
 	github.com/go-widgets/painter v0.12.0
