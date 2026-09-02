@@ -43,7 +43,7 @@ func TestControlsOverlayAppearsHidesAndComesBack(t *testing.T) {
 	bar.SetPlaying(true)
 	bar.SetProgress(37*time.Minute+12*time.Second, 43*time.Minute+58*time.Second)
 
-	ctrl := newControlsOverlay(surface, bar.Root())
+	ctrl := newControlsOverlay(surface, bar.Root(), nil)
 	// Wired exactly as the player wires it: a pointer event on the video is
 	// activity.
 	surface.OnInput = func(toolkit.Event) { ctrl.Note() }
@@ -132,7 +132,7 @@ func TestControlsOverlayStaysUpWhileThePointerIsOverIt(t *testing.T) {
 	bar := newControlBar(barActions{TogglePause: func() {}})
 	bar.Layout(fbW, fbH, 1)
 
-	ctrl := newControlsOverlay(surface, bar.Root())
+	ctrl := newControlsOverlay(surface, bar.Root(), nil)
 	surface.OnInput = func(toolkit.Event) {
 		t.Error("an event landed on the VIDEO while the pointer was over the bar")
 	}

@@ -34,12 +34,15 @@ type controlsOverlay struct {
 
 	vis   *barVisibility
 	layer toolkit.Widget
+	// pointer is drawn above the bar, because a pointer BEHIND the control it
+	// is over is worse than no pointer at all.
+	pointer toolkit.Widget
 }
 
 // newControlsOverlay layers bar above content. The bar is not shown yet; the
 // first Tick decides that.
-func newControlsOverlay(content, bar toolkit.Widget) *controlsOverlay {
-	c := &controlsOverlay{vis: newBarVisibility()}
+func newControlsOverlay(content, bar, pointer toolkit.Widget) *controlsOverlay {
+	c := &controlsOverlay{vis: newBarVisibility(), pointer: pointer}
 	c.Overlay = toolkit.NewOverlay(content)
 	c.layer = &activityWidget{Widget: bar, seen: c.vis.Note}
 	return c
@@ -62,6 +65,13 @@ func (c *controlsOverlay) Tick() bool {
 	if show {
 		if len(c.Overlay.Layers) == 0 {
 			c.Overlay.Push(c.layer)
+			// The pointer comes and goes with the controls, which is the
+			// right rule for both: it appears the moment the viewer moves
+			// the mouse, and it stops sitting on top of the film once they
+			// have left it alone.
+			if c.pointer != nil {
+				c.Overlay.Push(c.pointer)
+			}
 		}
 	} else {
 		c.Overlay.Clear()
