@@ -326,12 +326,16 @@ func Play(cfg Config) error {
 	// noteActivity is assigned once the overlay exists; until then a key press
 	// simply does its job without waking a bar that is not built yet.
 	noteActivity := func() {}
+	// notePointer is likewise assigned once there is a layer to move.
+	notePointer := func(int, int) {}
 
 	surface.OnInput = func(ev toolkit.Event) {
 		switch ev.Kind {
 		case toolkit.EventMouseMove:
 			// Moving the pointer is what brings the controls up, exactly as every
-			// other player does it.
+			// other player does it -- and it is also the only way this program
+			// learns where the pointer IS, which is what lets it draw one.
+			notePointer(ev.X, ev.Y)
 			noteActivity()
 			return
 		case toolkit.EventKeyDown:
@@ -400,9 +404,12 @@ func Play(cfg Config) error {
 	// One composition, shared with the tests that drive it. Activity only records
 	// WHEN something happened; Tick is the single place that decides whether the
 	// bar is up.
-	ctrl := newControlsOverlay(surface, bar.Root())
+	pointer := newPointerLayer()
+	pointer.Layout(fbW, fbH, len(v.maps))
+	ctrl := newControlsOverlay(surface, bar.Root(), pointer)
 	overlay = ctrl.Overlay
 	noteActivity = ctrl.Note
+	notePointer = pointer.Moved
 
 	go func() {
 		t := time.NewTicker(200 * time.Millisecond)
