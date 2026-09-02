@@ -17,6 +17,7 @@ import (
 	"github.com/go-widgets/toolkit"
 	"github.com/go-widgets/window"
 	"github.com/go-xrkit/depth3d"
+	"github.com/go-xrkit/xrkit/glasses"
 	"github.com/go-xrkit/xrkit/pose"
 	"github.com/go-xrkit/xrkit/projection"
 	"github.com/go-xrkit/xrkit/stereo"
@@ -182,9 +183,40 @@ func Play(cfg Config) error {
 		}
 	}
 
-	v := newView(fbW, fbH, stereoscopic, geom, info, strideWords, cfg.fovOrDefault())
-	cfg.logf("view      %d eye(s) of %dx%d, %.0f deg vertical, %.1f%% of the view covered",
-		len(v.maps), v.eyeW, v.eyeH, cfg.fovOrDefault(), v.coverage*100)
+	// The eye the picture is composed into, which is what both the model's
+	// field of view and the screen fitting are measured against.
+	eyeAspect := float64(fbW) / float64(fbH)
+	if stereoscopic {
+		eyeAspect = float64(fbW/2) / float64(fbH)
+	}
+	prof, how := identifyGlasses(chosen.Name, usbDevices())
+	fovy, known := viewFOV(prof, eyeAspect)
+	switch {
+	case cfg.FOVyDeg > 0:
+		fovy = cfg.FOVyDeg
+		cfg.logf("glasses   %.0f deg vertical, as asked for", fovy)
+	case known:
+		cfg.logf("glasses   %s by %s: %.1f deg vertical, from %.0f deg %s (%s)",
+			prof.Model, how, fovy, prof.PublishedFOV, prof.Axis, prof.Source)
+	case how != glasses.NotIdentified:
+		// Recognised, but not to a model with a usable figure -- a brand, or a
+		// model whose maker published an angle without saying which one. The
+		// catalogue refuses to guess and so does this.
+		cfg.logf("glasses   %s by %s, but no usable published field of view, so %.0f deg is a framing; the picture still fills the view",
+			prof.Model, how, fovy)
+	default:
+		cfg.logf("glasses   not identified among %d USB device(s), so %.0f deg is a framing; the picture still fills the view",
+			len(usbDevices()), fovy)
+	}
+	geom, filled := fitToView(geom, info, eyeAspect, fovy)
+	if filled {
+		cfg.logf("screen    %.1f x %.1f deg, sized to fill the eye",
+			geom.Projection.HSpanDeg, geom.Projection.VSpanDeg)
+	}
+
+	v := newView(fbW, fbH, stereoscopic, geom, info, strideWords, fovy)
+	cfg.logf("view      %d eye(s) of %dx%d, %.1f deg vertical, %.1f%% of the view covered",
+		len(v.maps), v.eyeW, v.eyeH, fovy, v.coverage*100)
 
 	stop := make(chan struct{})
 	var once sync.Once
