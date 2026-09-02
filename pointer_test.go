@@ -1,6 +1,11 @@
 package player
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/go-widgets/painter"
+	"github.com/go-widgets/toolkit"
+)
 
 func TestNoPointerUntilItMoves(t *testing.T) {
 	l := newPointerLayer()
@@ -81,5 +86,66 @@ func TestAPointerWithNowhereToGo(t *testing.T) {
 	l.Moved(-5, 20)
 	if m := l.marks(); len(m) != 1 || m[0].X != 0 {
 		t.Errorf("a pointer left of the panel gave %v, want a mark at x=0", m)
+	}
+}
+
+// TestThePointerActuallyDraws goes past marks(): it renders and counts ink.
+//
+// The placement can be right while nothing appears -- an icon name that is not
+// in the pack returns an empty document, and toolkit.SVGIcon then draws
+// nothing at all, silently. That is a plausible failure and it would look
+// exactly like the bug this whole file exists to fix.
+func TestThePointerActuallyDraws(t *testing.T) {
+	const w, h = 640, 400
+	const gr, gg, gb = 40, 44, 52
+	buf := make([]byte, w*h*4)
+	for i := 0; i < len(buf); i += 4 {
+		buf[i], buf[i+1], buf[i+2], buf[i+3] = gr, gg, gb, 255
+	}
+	p := painter.NewPixelPainter(buf, w, h)
+
+	l := newPointerLayer()
+	l.Layout(w, h, 1)
+	l.Moved(100, 120)
+	l.Draw(p, toolkit.DefaultDark())
+
+	inside, outside := 0, 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			i := (y*w + x) * 4
+			if buf[i] == gr && buf[i+1] == gg && buf[i+2] == gb {
+				continue
+			}
+			if x >= 100 && x < 100+pointerSize && y >= 120 && y < 120+pointerSize {
+				inside++
+			} else {
+				outside++
+			}
+		}
+	}
+	if inside == 0 {
+		t.Error("nothing was drawn where the pointer is; the icon name is probably not in the pack")
+	}
+	if outside != 0 {
+		t.Errorf("%d pixels were painted outside the mark, which would smear over the film", outside)
+	}
+	// A mark is a mark, not a filled square: a glyph that covered its whole box
+	// would be a blob rather than a pointer.
+	if area := pointerSize * pointerSize; inside > area/2 {
+		t.Errorf("%d of %d pixels in the box are ink; that is a blob, not a pointer", inside, area)
+	}
+
+	// The negative control: an untouched layer paints nothing at all, so the
+	// count above is about the pointer and not about the painter.
+	for i := 0; i < len(buf); i += 4 {
+		buf[i], buf[i+1], buf[i+2] = gr, gg, gb
+	}
+	quiet := newPointerLayer()
+	quiet.Layout(w, h, 1)
+	quiet.Draw(p, toolkit.DefaultDark())
+	for i := 0; i < len(buf); i += 4 {
+		if buf[i] != gr || buf[i+1] != gg || buf[i+2] != gb {
+			t.Fatal("a pointer that never moved painted something anyway")
+		}
 	}
 }
