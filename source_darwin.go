@@ -19,7 +19,7 @@ import (
 // The choice is made from what the file IS, not by trying AVFoundation and
 // falling back on its refusal: a fallback would also swallow the failures that
 // are genuinely about a broken file.
-func openSource(path string) (source, error) {
+func openSource(path, audioUID string) (source, error) {
 	head, err := readHead(path)
 	if err != nil {
 		return nil, err
@@ -28,7 +28,7 @@ func openSource(path string) (source, error) {
 		// AVFoundation will not demux Matroska at all, so there is nothing to try.
 		return openDemuxed(path)
 	}
-	return openAVPlayer(path)
+	return openAVPlayer(path, audioUID)
 }
 
 // openPlaying returns a source that has actually PRODUCED A PICTURE, together
@@ -45,8 +45,8 @@ func openSource(path string) (source, error) {
 // candidate cannot, the demuxed path is tried. When THAT fails too, both
 // failures are reported: a fallback that hides the first error would turn a
 // genuinely broken file into a puzzle.
-func openPlaying(path string, logf func(string, ...any)) (source, clocked, *srcFrame, error) {
-	src, err := openSource(path)
+func openPlaying(path, audioUID string, logf func(string, ...any)) (source, clocked, *srcFrame, error) {
+	src, err := openSource(path, audioUID)
 	if err == nil {
 		clock, _ := src.(clocked)
 		f, ferr := firstFrame(src, clock)
@@ -321,8 +321,8 @@ type avPlayerSource struct {
 // the player would still ANSWER, echoing back whatever time it was last handed,
 // which is exactly how a binding that has opened nothing passes for one that
 // works.
-func openAVPlayer(path string) (source, error) {
-	p, err := avfoundation.OpenPlayer(path)
+func openAVPlayer(path, audioUID string) (source, error) {
+	p, err := avfoundation.OpenPlayer(path, avfoundation.Options{AudioDeviceUID: audioUID})
 	if err != nil {
 		return nil, err
 	}

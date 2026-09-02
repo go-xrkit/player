@@ -33,6 +33,15 @@ type Config struct {
 	// and the framing of panoramic material, which a field of view really
 	// does frame.
 	FOVyDeg float64
+	// AudioDevice names the audio output to play the sound on, by its name or
+	// by its unique id. Empty -- the usual case -- plays on the glasses' own
+	// output when they publish one, and leaves the choice to the system when
+	// they do not.
+	//
+	// A device asked for by name and not found is NOT replaced by a guess: the
+	// player says so and lets the system choose, because silently playing
+	// somewhere else is the fault this setting exists to fix.
+	AudioDevice string
 	// Loop restarts at the end instead of stopping.
 	Loop bool
 	// Mono forces a single-eye view even on a display that looks stereoscopic.
