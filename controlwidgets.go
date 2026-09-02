@@ -37,7 +37,7 @@ type controlBar struct {
 	root    *toolkit.VBox
 	times   *toolkit.HBox
 	rows    *toolkit.HBox
-	buttons []*toolkit.Button
+	buttons []*toolkit.IconButton
 	scrub   *toolkit.Scale
 	elapsed *toolkit.Label
 	total   *toolkit.Label
@@ -79,7 +79,14 @@ const (
 var scrimFill = painter.RGBA{R: 12, G: 14, B: 18, A: 235}
 
 const (
-	buttonSize     = 56
+	buttonSize = 56
+	// buttonGap keeps the squares apart. It is wide because these are pressed
+	// through a headset, where the pointer is a guess rather than a placement.
+	buttonGap = 16
+	// barPadding keeps the contents off the scrim's rounded edge. Without it
+	// the elapsed time is drawn touching the corner, which reads as clipped
+	// text rather than as a margin nobody left.
+	barPadding     = 24
 	timeLabelWidth = 90
 	scrubRowHeight = 36
 )
@@ -97,29 +104,29 @@ func newControlBar(a barActions) *controlBar {
 		total:   toolkit.NewLabel("0:00"),
 	}
 
-	mk := func(name string, on func()) *toolkit.Button {
-		btn := toolkit.NewButton("", on)
-		btn.Icon = icon(name)
+	mk := func(name string, on func()) *toolkit.IconButton {
+		btn := toolkit.NewIconButton("", on)
+		btn.Glyph = icon(name)
 		btn.Flat = true
 		btn.Disabled().Set(on == nil)
 		return btn
 	}
-	play := toolkit.NewButton("", a.TogglePause)
+	play := toolkit.NewIconButton("", a.TogglePause)
 	play.Flat = true
 	play.Disabled().Set(a.TogglePause == nil)
 	// One button, two glyphs: it shows what pressing it will DO, which is the
 	// convention, rather than what the player is currently doing.
-	play.Icon = func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
+	play.Glyph = func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
 		name := iconPlay
 		if b.playing {
 			name = iconPause
 		}
 		icon(name)(p, r, ink)
 	}
-	mute := toolkit.NewButton("", a.ToggleMute)
+	mute := toolkit.NewIconButton("", a.ToggleMute)
 	mute.Flat = true
 	mute.Disabled().Set(a.ToggleMute == nil)
-	mute.Icon = func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
+	mute.Glyph = func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
 		name := iconSound
 		if b.muted {
 			name = iconMuted
@@ -127,7 +134,7 @@ func newControlBar(a barActions) *controlBar {
 		icon(name)(p, r, ink)
 	}
 
-	b.buttons = []*toolkit.Button{
+	b.buttons = []*toolkit.IconButton{
 		mk(iconRestart, a.Restart),
 		mk(iconBack, a.Back),
 		play,
@@ -139,6 +146,10 @@ func newControlBar(a barActions) *controlBar {
 	// of the bar whatever the panel is wide.
 	b.rows.Pack = toolkit.PackCenter
 	b.rows.Align = toolkit.BoxAlignCenter
+	// The transport buttons are separate targets, not a segmented control, so
+	// they are spaced apart. At the default 4 pixels five 56-pixel squares read
+	// as one striped slab -- which is what this looked like.
+	b.rows.Spacing = buttonGap
 	for _, btn := range b.buttons {
 		b.rows.AddFixed(btn, buttonSize)
 	}
@@ -178,7 +189,12 @@ func (b *controlBar) Layout(fbW, fbH, eyes int) {
 	// The Overlay resizes its Content, so the scrim follows on its own; the
 	// controls are a LAYER and position themselves.
 	b.frame.SetBounds(rect)
-	b.root.SetBounds(rect)
+	b.root.SetBounds(toolkit.Rect{
+		X: rect.X + barPadding,
+		Y: rect.Y + barPadding/2,
+		W: rect.W - 2*barPadding,
+		H: rect.H - barPadding,
+	})
 }
 
 // SetPlaying updates the play/pause glyph.
