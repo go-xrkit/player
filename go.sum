@@ -50,8 +50,8 @@ github.com/go-macos/appkit v0.4.0 h1:fB5vlsXLmuQExTBKWflQr+oreshYn1VUeqe1pIKQhPA
 github.com/go-macos/appkit v0.4.0/go.mod h1:KQ+vIsZ2hBFniqFJ5Q4uQ4ylQX+MXPvJcMOzvBpJRdE=
 github.com/go-macos/audiotoolbox v0.0.0-20260902185836-249227626fa5 h1:5MXtcTbNMpNARHXKrnVOox6UljZUjXvGuYegYB5zKuk=
 github.com/go-macos/audiotoolbox v0.0.0-20260902185836-249227626fa5/go.mod h1:bIIhOk9fzwuMh7Ru7MSpdVG4FJtp+3IeikGPbcQ5M9I=
-github.com/go-macos/avfoundation v0.9.0 h1:ajL1R6p8YaMzBQ47pu56DSh0CtVNjrTqHH42hP6iqEY=
-github.com/go-macos/avfoundation v0.9.0/go.mod h1:9jZoHgSifeX3mACQOhodATX81F1i5zlhJnSF/OQm684=
+github.com/go-macos/avfoundation v0.10.0 h1:MAmbq3KSP6LfxftSl/f59RxFVJV8FeKsTvY6rlYLfKs=
+github.com/go-macos/avfoundation v0.10.0/go.mod h1:9jZoHgSifeX3mACQOhodATX81F1i5zlhJnSF/OQm684=
 github.com/go-macos/coreaudio v0.2.0 h1:/8v/jxZuYG3ytOMoaoutbxLNAgRPmZBYwtJMeAth2aQ=
 github.com/go-macos/coreaudio v0.2.0/go.mod h1:u6C2VWnyireixiiUHJGJAbNTXax3dxeokjSgjqsOJfI=
 github.com/go-macos/coreml v0.1.0 h1:vzIqix5/2V9fXT6psX56wJnFR0olrXllZ5L2bgw6dIA=
