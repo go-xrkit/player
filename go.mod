@@ -7,15 +7,15 @@ require (
 	github.com/go-icons/iconoir v0.2.0
 	github.com/go-images/depth v0.4.0
 	github.com/go-macos/audiotoolbox v0.0.0-20260902185836-249227626fa5
-	github.com/go-macos/avfoundation v0.10.0
+	github.com/go-macos/avfoundation v0.11.0
 	github.com/go-macos/coreaudio v0.2.0
-	github.com/go-macos/iokit v0.8.0
+	github.com/go-macos/iokit v0.10.0
 	github.com/go-macos/videotoolbox v0.1.1
 	github.com/go-widgets/painter v0.13.0
-	github.com/go-widgets/toolkit v0.307.0
-	github.com/go-widgets/window v0.69.0
+	github.com/go-widgets/toolkit v0.314.0
+	github.com/go-widgets/window v0.73.0
 	github.com/go-xrkit/depth3d v0.1.0
-	github.com/go-xrkit/xrkit v0.15.0
+	github.com/go-xrkit/xrkit v0.16.0
 )
 
 require (
@@ -30,13 +30,13 @@ require (
 	github.com/at-wat/ebml-go v0.19.2 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/ebitengine/purego v0.11.0 // indirect
-	github.com/go-crdt/collab v0.40.0 // indirect
-	github.com/go-crdt/crdt v0.42.0 // indirect
+	github.com/go-crdt/collab v0.45.0 // indirect
+	github.com/go-crdt/crdt v0.46.0 // indirect
 	github.com/go-freedesktop/x11 v0.2.0 // indirect
 	github.com/go-gfx/gfx v0.19.0 // indirect
-	github.com/go-gtk/gtk4 v0.4.0 // indirect
+	github.com/go-gtk/gtk4 v0.6.0 // indirect
 	github.com/go-images/images v0.0.0-20260831115433-23d959d868e3 // indirect
-	github.com/go-macos/appkit v0.4.0 // indirect
+	github.com/go-macos/appkit v0.5.0 // indirect
 	github.com/go-macos/coreml v0.1.0 // indirect
 	github.com/go-macos/metal v0.1.0 // indirect
 	github.com/go-macos/objc v0.9.1 // indirect
