@@ -9,10 +9,10 @@ require (
 	github.com/go-macos/audiotoolbox v0.0.0-20260902185836-249227626fa5
 	github.com/go-macos/avfoundation v0.11.0
 	github.com/go-macos/coreaudio v0.2.0
-	github.com/go-macos/iokit v0.10.0
+	github.com/go-macos/iokit v0.12.0
 	github.com/go-macos/videotoolbox v0.1.1
 	github.com/go-widgets/painter v0.13.0
-	github.com/go-widgets/toolkit v0.314.0
+	github.com/go-widgets/toolkit v0.316.0
 	github.com/go-widgets/window v0.73.0
 	github.com/go-xrkit/depth3d v0.1.0
 	github.com/go-xrkit/xrkit v0.16.0

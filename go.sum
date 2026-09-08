@@ -56,8 +56,8 @@ github.com/go-macos/coreaudio v0.2.0 h1:/8v/jxZuYG3ytOMoaoutbxLNAgRPmZBYwtJMeAth
 github.com/go-macos/coreaudio v0.2.0/go.mod h1:u6C2VWnyireixiiUHJGJAbNTXax3dxeokjSgjqsOJfI=
 github.com/go-macos/coreml v0.1.0 h1:vzIqix5/2V9fXT6psX56wJnFR0olrXllZ5L2bgw6dIA=
 github.com/go-macos/coreml v0.1.0/go.mod h1:fzohkuw/D3qvM+1BkjRmfYLrFYCw5zjpzIR0wNcX6SA=
-github.com/go-macos/iokit v0.10.0 h1:1IernrMQ+MgbxhWrrhEny0aqZ14e7G8ZeoyWBnjlb1I=
-github.com/go-macos/iokit v0.10.0/go.mod h1:wH6UchjE6k8iCtouJcF+WggCgFpn9GQtzBpQtEcCLUY=
+github.com/go-macos/iokit v0.12.0 h1:rQ4Kcq94sZwzVwVRNc/vocMLxduTCJLQ04BrmkH+Yxc=
+github.com/go-macos/iokit v0.12.0/go.mod h1:wH6UchjE6k8iCtouJcF+WggCgFpn9GQtzBpQtEcCLUY=
 github.com/go-macos/metal v0.1.0 h1:3giY1/2m5Z6Px2qfKP3zSA4wMk5oE9OtPajae2Erc9s=
 github.com/go-macos/metal v0.1.0/go.mod h1:OWBxTf+oac2xxRj0+pehRsWo2yDqnEWpSyWmqBEOMlQ=
 github.com/go-macos/objc v0.9.1 h1:GGBoj8aMijBCYNPjGAYS4neeA3lWa8/JEIF1K5GswDo=
@@ -86,8 +86,8 @@ github.com/go-widgets/mvvm v0.9.0 h1:NwW/hAAsJUGlxmNt0ErQ7fUrud3w5Ys1RWm7hVugdJs
 github.com/go-widgets/mvvm v0.9.0/go.mod h1:1cUYVpDei59Ka7W3pMD1FWksBmBXfPnbPWHzBAJ/ebA=
 github.com/go-widgets/painter v0.13.0 h1:xBPbopFuYfeDVbQKUKviU6HnP2mAhztJ+BpasahlJLU=
 github.com/go-widgets/painter v0.13.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
-github.com/go-widgets/toolkit v0.314.0 h1:ZUHWJiRM1HocAwCYJkqrwSDakeHAHzUjXHdY6LmI+ek=
-github.com/go-widgets/toolkit v0.314.0/go.mod h1:Mucxvqm+K+VjG+Iu5i1RExez41H2Slbc99HYOcyc1sU=
+github.com/go-widgets/toolkit v0.316.0 h1:K/8npgr8qkQDtIcfcaYTxrPHAxNWIcwhU0RcwKPfY8I=
+github.com/go-widgets/toolkit v0.316.0/go.mod h1:Mucxvqm+K+VjG+Iu5i1RExez41H2Slbc99HYOcyc1sU=
 github.com/go-widgets/window v0.73.0 h1:b8E/z2sytRPNpRt2lt80xjwcPHIjarF1QABGBjVs454=
 github.com/go-widgets/window v0.73.0/go.mod h1:96cemkkeQgHVoBGzWLyPa/1HwCF5LETehCb99+7LsLY=
 github.com/go-xrkit/depth3d v0.1.0 h1:78w0YWvENMzrITw5V/CPhusv/Z2dKSw0UWug5CjpfqU=
