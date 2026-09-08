@@ -48,8 +48,9 @@ func Play(cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("player: cannot enumerate displays: %w", err)
 	}
-	displays := make([]Display, len(screens))
-	for i, s := range screens {
+	all := screens.All()
+	displays := make([]Display, len(all))
+	for i, s := range all {
 		displays[i] = Display{Name: s.Name, Width: s.Width, Height: s.Height, Primary: s.Primary, Scale: s.Scale}
 	}
 	chosen, err := ChooseDisplay(displays, cfg.Screen)
@@ -59,7 +60,7 @@ func Play(cfg Config) error {
 	// Find the window.Screen the choice refers to, which is what Config.Screen
 	// wants — the Display type deliberately carries no back-end handle.
 	var target window.Screen
-	for _, s := range screens {
+	for _, s := range all {
 		if s.Name == chosen.Name && s.Width == chosen.Width && s.Height == chosen.Height {
 			target = s
 			break

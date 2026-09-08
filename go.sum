@@ -88,8 +88,8 @@ github.com/go-widgets/painter v0.13.0 h1:xBPbopFuYfeDVbQKUKviU6HnP2mAhztJ+Bpasah
 github.com/go-widgets/painter v0.13.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
 github.com/go-widgets/toolkit v0.316.0 h1:K/8npgr8qkQDtIcfcaYTxrPHAxNWIcwhU0RcwKPfY8I=
 github.com/go-widgets/toolkit v0.316.0/go.mod h1:Mucxvqm+K+VjG+Iu5i1RExez41H2Slbc99HYOcyc1sU=
-github.com/go-widgets/window v0.73.0 h1:b8E/z2sytRPNpRt2lt80xjwcPHIjarF1QABGBjVs454=
-github.com/go-widgets/window v0.73.0/go.mod h1:96cemkkeQgHVoBGzWLyPa/1HwCF5LETehCb99+7LsLY=
+github.com/go-widgets/window v0.75.0 h1:5IcIZfrTQkBu3nIJGoxRIYjPS/VVUAMHj4Ik/47E0sA=
+github.com/go-widgets/window v0.75.0/go.mod h1:M3CiCqwwsWUHitjkYEkCtUdceAsNTp9cwecTE+Pb9Ik=
 github.com/go-xrkit/depth3d v0.1.0 h1:78w0YWvENMzrITw5V/CPhusv/Z2dKSw0UWug5CjpfqU=
 github.com/go-xrkit/depth3d v0.1.0/go.mod h1:MRN1X2PMSFWU4wcFXMwIiP4uowUlzfHm7cHbzVKPSMk=
 github.com/go-xrkit/xrkit v0.16.0 h1:rvBEE84NeoinjrsMB8xwVW7OHXDmfqw92HEqD8DOQjU=
