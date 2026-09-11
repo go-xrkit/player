@@ -9,13 +9,13 @@ require (
 	github.com/go-macos/audiotoolbox v0.0.0-20260902185836-249227626fa5
 	github.com/go-macos/avfoundation v0.11.0
 	github.com/go-macos/coreaudio v0.2.0
-	github.com/go-macos/iokit v0.12.0
+	github.com/go-macos/iokit v0.13.0
 	github.com/go-macos/videotoolbox v0.1.1
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.316.0
-	github.com/go-widgets/window v0.75.0
+	github.com/go-widgets/window v0.76.0
 	github.com/go-xrkit/depth3d v0.1.0
-	github.com/go-xrkit/xrkit v0.16.0
+	github.com/go-xrkit/xrkit v0.17.0
 )
 
 require (
@@ -39,7 +39,7 @@ require (
 	github.com/go-macos/appkit v0.5.0 // indirect
 	github.com/go-macos/coreml v0.1.0 // indirect
 	github.com/go-macos/metal v0.1.0 // indirect
-	github.com/go-macos/objc v0.9.1 // indirect
+	github.com/go-macos/objc v0.10.1 // indirect
 	github.com/go-mswin/win32 v0.4.0 // indirect
 	github.com/go-opentype/fonts v0.9.0 // indirect
 	github.com/go-opentype/opentype v0.12.0 // indirect
