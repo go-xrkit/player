@@ -13,7 +13,7 @@ require (
 	github.com/go-macos/videotoolbox v0.1.1
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.316.0
-	github.com/go-widgets/window v0.76.0
+	github.com/go-widgets/window v0.77.0
 	github.com/go-xrkit/depth3d v0.1.0
 	github.com/go-xrkit/xrkit v0.17.0
 )
@@ -39,7 +39,7 @@ require (
 	github.com/go-macos/appkit v0.5.0 // indirect
 	github.com/go-macos/coreml v0.1.0 // indirect
 	github.com/go-macos/metal v0.1.0 // indirect
-	github.com/go-macos/objc v0.10.1 // indirect
+	github.com/go-macos/objc v0.10.2 // indirect
 	github.com/go-mswin/win32 v0.4.0 // indirect
 	github.com/go-opentype/fonts v0.9.0 // indirect
 	github.com/go-opentype/opentype v0.12.0 // indirect
@@ -60,7 +60,7 @@ require (
 	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
