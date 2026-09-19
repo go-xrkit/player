@@ -14,8 +14,8 @@ github.com/asticode/go-astikit v0.30.0 h1:DkBkRQRIxYcknlaU7W7ksNfn4gMFsB0tqMJflx
 github.com/asticode/go-astikit v0.30.0/go.mod h1:h4ly7idim1tNhaVkdVBeXQZEE3L0xblP7fCWbgwipF0=
 github.com/asticode/go-astits v1.16.0 h1:MgyLnG30oRiQsHWQNXA29ZS6i7UNN/OGcPdgH86JJqg=
 github.com/asticode/go-astits v1.16.0/go.mod h1:psImoC1BhcAWIsyM/RnbO1OgUW+XSf8fZpFvF5McDyo=
-github.com/at-wat/ebml-go v0.19.2 h1:W+/eivAXUfd5jwq9ToQvsunsLXnww4VXjygwoP9VS9o=
-github.com/at-wat/ebml-go v0.19.2/go.mod h1:wu3fQj+DWo6SOOl9c4yDi+gFs9Oa96Z2B5qxo1OxFYY=
+github.com/at-wat/ebml-go v0.19.3 h1:d+UC5nz3as8at1Ek4bhGPY5f+eoVYSQZmnTF4D+cJMs=
+github.com/at-wat/ebml-go v0.19.3/go.mod h1:wu3fQj+DWo6SOOl9c4yDi+gFs9Oa96Z2B5qxo1OxFYY=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
@@ -24,8 +24,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/ebitengine/purego v0.11.0 h1:jhp/D+Nyv7UUW8HAcmcjt2N2rYrYi9m3SL21k0Ua/NI=
 github.com/ebitengine/purego v0.11.0/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
-github.com/go-avkit/avkit v0.0.0-20260901193055-4820260425ec h1:aA2t2NRkxTEclzPvsbWkJZXgrxXcGF6rET9gAUKlwfE=
-github.com/go-avkit/avkit v0.0.0-20260901193055-4820260425ec/go.mod h1:iefeY57TAIQ2tr7MJ64eQzCmzj/hLmvtsfDgh7jMVC8=
+github.com/go-avkit/avkit v0.0.0-20260918185656-b6b8c0f3c881 h1:Si88J860fdQDH9AiRXXBIq44OZltFpKJqKV1gxDbPPc=
+github.com/go-avkit/avkit v0.0.0-20260918185656-b6b8c0f3c881/go.mod h1:ENrtiAN3W9PV9XJ1oruwTEjsdbRz1ymYOYq3PC1KkFA=
 github.com/go-crdt/collab v0.45.0 h1:O3HVbnPu1CknSO5IcSKki3xS6C4eJc9s7kijGy1UZp8=
 github.com/go-crdt/collab v0.45.0/go.mod h1:d3gQSA54/HSs2Xwh0Mo9ViVOpQPa4hlbOhSnFEhidDI=
 github.com/go-crdt/crdt v0.46.0 h1:Ppup+K/zLvM1trmBz83ENvEVcOTi3fFGnihvJMRL2yc=

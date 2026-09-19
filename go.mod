@@ -3,7 +3,7 @@ module github.com/go-xrkit/player
 go 1.26.4
 
 require (
-	github.com/go-avkit/avkit v0.0.0-20260901193055-4820260425ec
+	github.com/go-avkit/avkit v0.0.0-20260918185656-b6b8c0f3c881
 	github.com/go-icons/iconoir v0.2.0
 	github.com/go-images/depth v0.4.0
 	github.com/go-macos/audiotoolbox v0.0.0-20260902185836-249227626fa5
@@ -27,7 +27,7 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/asticode/go-astikit v0.30.0 // indirect
 	github.com/asticode/go-astits v1.16.0 // indirect
-	github.com/at-wat/ebml-go v0.19.2 // indirect
+	github.com/at-wat/ebml-go v0.19.3 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/ebitengine/purego v0.11.0 // indirect
 	github.com/go-crdt/collab v0.45.0 // indirect
