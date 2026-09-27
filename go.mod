@@ -12,7 +12,7 @@ require (
 	github.com/go-macos/iokit v0.13.0
 	github.com/go-macos/videotoolbox v0.1.1
 	github.com/go-widgets/painter v0.13.0
-	github.com/go-widgets/toolkit v0.320.0
+	github.com/go-widgets/toolkit v0.321.0
 	github.com/go-widgets/window v0.83.0
 	github.com/go-xrkit/depth3d v0.1.0
 	github.com/go-xrkit/xrkit v0.17.0
@@ -30,8 +30,8 @@ require (
 	github.com/at-wat/ebml-go v0.19.3 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
-	github.com/go-crdt/collab v0.62.0 // indirect
-	github.com/go-crdt/crdt v0.49.0 // indirect
+	github.com/go-crdt/collab v0.70.0 // indirect
+	github.com/go-crdt/crdt v0.51.0 // indirect
 	github.com/go-freedesktop/x11 v0.2.0 // indirect
 	github.com/go-gfx/gfx v0.19.0 // indirect
 	github.com/go-gtk/gtk4 v0.8.0 // indirect
