@@ -1,6 +1,6 @@
 module github.com/go-xrkit/player
 
-go 1.26.4
+go 1.27.1
 
 require (
 	github.com/go-avkit/avkit v0.0.0-20260901193055-4820260425ec
