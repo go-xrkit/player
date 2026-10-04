@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: stable }
+        with: { go-version: '1.27.1' }
       - name: gofmt
         run: |
           unformatted=$(gofmt -l .)
@@ -44,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: stable }
+        with: { go-version: '1.27.1' }
       - run: CGO_ENABLED=0 go vet ./...
       - run: CGO_ENABLED=0 go build ./...
       - run: CGO_ENABLED=0 go test -count=1 -coverprofile=cover.out ./...
@@ -57,10 +57,21 @@ jobs:
         run: |
           go tool cover -func=cover.out | grep -E '/(detect|screen|source|controls|controlbar)\.go:' > portable.txt
           cat portable.txt
+          # A GATE WHOSE FILTER FINDS NOTHING HAS NOT MEASURED ANYTHING. Without
+          # this, a renamed file or a moved path leaves portable.txt EMPTY -- and
+          # an empty file has no line below 100%, so the gate passes and prints
+          # "portable logic: 100%" having read zero functions. The number it
+          # reports is the number it read, so a drop is visible before it
+          # becomes a silent zero. 35 today.
+          n=$(grep -c '' portable.txt || true)
+          if [ "$n" -lt 20 ]; then
+            echo "::error::only $n gated functions were found; there are about 35, so the filter above has stopped matching"
+            exit 1
+          fi
           if grep -v '100.0%' portable.txt; then
             echo "::error::the portable logic is below 100% (lines above)"; exit 1
           fi
-          echo "portable logic: 100%"
+          echo "portable logic: 100% on $n functions"
 
   cross:
     name: cross ${{ matrix.goos }}/${{ matrix.goarch }}
@@ -84,7 +95,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: stable }
+        with: { go-version: '1.27.1' }
       - run: CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build ./...
       - run: CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go vet ./...
 
@@ -94,5 +105,5 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: stable }
+        with: { go-version: '1.27.1' }
       - run: CGO_ENABLED=0 go test -count=1 ./...
