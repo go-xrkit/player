@@ -19,10 +19,28 @@ jobs:
       # A workflow that fails to PARSE reports nothing at all: no jobs run, no
       # checks appear, and the pull request looks unexercised rather than
       # broken. This is the only lane that would notice.
-      - name: actionlint
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      # ⛔⛔ FROM THE MODULE PROXY, NOT A SCRIPT FETCHED FROM A BRANCH. This
+      # step used to run `bash <(curl -fsSL …/rhysd/actionlint/main/scripts/
+      # download-actionlint.bash)` on every push, in a job holding the runner's
+      # token: a third-party repository's MAIN, an unpinned moving ref, executed
+      # with nothing checked. actionlint is a Go program, so `go install` at a
+      # pinned version gets it through proxy.golang.org with the checksum
+      # database vouching for the bytes.
+      #
+      # ⭐ AND IT KEEPS AN OUTAGE FROM LOOKING LIKE OUR DEFECT: on 2026-11-08
+      # GitHub's release-asset CDN answered 504 for releases/download of two
+      # unrelated repositories while api.github.com answered 200, the downloader
+      # did not check, and the error page went into `tar` — which complained
+      # three steps away from the cause. The module proxy is a different service
+      # and was unaffected. Same change as go-xrkit/android at v0.20.1.
+      - name: Lint the workflows
         run: |
-          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-          ./actionlint -color
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)/bin/actionlint" -color
 
   gofmt:
     runs-on: ubuntu-latest
