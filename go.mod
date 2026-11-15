@@ -3,23 +3,23 @@ module github.com/go-xrkit/player
 go 1.27.3
 
 require (
-	github.com/go-avkit/avkit v0.12.0
+	github.com/go-avkit/avkit v0.16.0
 	github.com/go-icons/iconoir v0.3.0
 	github.com/go-images/depth v0.5.0
-	github.com/go-macos/audiotoolbox v0.0.0-20261104172512-7f6997459464
+	github.com/go-macos/audiotoolbox v0.0.0-20261109195702-56285b5e9b27
 	github.com/go-macos/avfoundation v0.13.0
 	github.com/go-macos/coreaudio v0.4.0
 	github.com/go-macos/iokit v0.14.0
 	github.com/go-macos/videotoolbox v0.3.0
-	github.com/go-widgets/painter v0.17.0
-	github.com/go-widgets/toolkit v0.356.0
-	github.com/go-widgets/window v0.90.0
+	github.com/go-widgets/painter v0.17.1
+	github.com/go-widgets/toolkit v0.374.11
+	github.com/go-widgets/window v0.93.0
 	github.com/go-xrkit/depth3d v0.2.0
 	github.com/go-xrkit/xrkit v0.21.0
 )
 
 require (
-	github.com/Eyevinn/mp4ff v0.61.0 // indirect
+	github.com/Eyevinn/mp4ff v0.62.1 // indirect
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
@@ -32,24 +32,27 @@ require (
 	github.com/go-crdt/crdt v0.57.0 // indirect
 	github.com/go-freedesktop/x11 v0.3.0 // indirect
 	github.com/go-gfx/gfx v0.41.0 // indirect
-	github.com/go-gfx/gpu2d v0.4.0 // indirect
+	github.com/go-gfx/gpu2d v0.11.0 // indirect
+	github.com/go-gfx/vulkan v0.2.1 // indirect
 	github.com/go-gtk/gtk4 v0.9.0 // indirect
 	github.com/go-images/images v0.1.1-0.20261026203936-4ac989d310a1 // indirect
 	github.com/go-macos/appkit v0.9.0 // indirect
 	github.com/go-macos/coreml v0.1.0 // indirect
 	github.com/go-macos/metal v0.6.0 // indirect
 	github.com/go-macos/objc v0.12.0 // indirect
+	github.com/go-mswin/d3d11 v0.3.0 // indirect
 	github.com/go-mswin/win32 v0.6.0 // indirect
 	github.com/go-opentype/fonts v0.14.0 // indirect
-	github.com/go-opentype/opentype v0.16.2-0.20261101005254-2c8922cb87c6 // indirect
+	github.com/go-opentype/opentype v0.18.0 // indirect
 	github.com/go-opentype/shape v0.7.0 // indirect
 	github.com/go-richdoc/richdoc v0.7.0 // indirect
 	github.com/go-typeset/bidi v0.3.1 // indirect
 	github.com/go-widgets/android v0.16.0 // indirect
 	github.com/go-widgets/gpupainter v0.4.0 // indirect
 	github.com/go-widgets/mvvm v0.15.0 // indirect
-	github.com/go-widgets/textinput v0.1.0 // indirect
-	github.com/go-widgets/webcanvas v0.7.0 // indirect
+	github.com/go-widgets/textinput v0.1.1 // indirect
+	github.com/go-widgets/vcs v0.1.0 // indirect
+	github.com/go-widgets/webcanvas v0.14.1 // indirect
 	github.com/godbus/dbus/v5 v5.2.4 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.25.0 // indirect
