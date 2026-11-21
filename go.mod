@@ -1,6 +1,6 @@
 module github.com/go-xrkit/player
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/go-avkit/avkit v0.19.1
@@ -12,7 +12,7 @@ require (
 	github.com/go-macos/iokit v0.14.0
 	github.com/go-macos/videotoolbox v0.3.0
 	github.com/go-widgets/painter v0.17.1
-	github.com/go-widgets/toolkit v0.379.0
+	github.com/go-widgets/toolkit v0.392.0
 	github.com/go-widgets/window v0.93.0
 	github.com/go-xrkit/depth3d v0.3.0
 	github.com/go-xrkit/xrkit v0.21.1
@@ -29,7 +29,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect
 	github.com/ebitengine/purego v0.11.3 // indirect
-	github.com/go-crdt/crdt v0.57.0 // indirect
+	github.com/go-crdt/crdt v0.59.0 // indirect
 	github.com/go-freedesktop/x11 v0.3.0 // indirect
 	github.com/go-gfx/gfx v0.41.0 // indirect
 	github.com/go-gfx/gpu2d v0.11.0 // indirect
